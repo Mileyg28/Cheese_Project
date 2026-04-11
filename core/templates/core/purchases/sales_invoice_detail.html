@@ -1,0 +1,75 @@
+{% extends "core/purchases/base.html" %}
+{% load static %}
+
+{% load filters %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto px-4 py-6">
+    <div class="bg-white shadow-md rounded-2xl p-6">
+        <div class="flex justify-between items-start mb-6">
+            <div>
+                <h1 class="text-2xl font-bold text-gray-800">
+                    Invoice {{ invoice.invoice_number }}
+                </h1>
+                <p class="text-sm text-gray-500 mt-1">
+                    Customer: {{ invoice.customer.name }}
+                </p>
+                <p class="text-sm text-gray-500">
+                    Date: {{ invoice.invoice_date }}
+                </p>
+            </div>
+
+            <div class="text-right">
+                <p class="text-sm text-gray-500">Total amount</p>
+                <p class="text-2xl font-bold text-green-700">
+                    ${{ invoice.total_amount }}
+                </p>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full border border-gray-200 rounded-xl overflow-hidden">
+                <thead class="bg-gray-100">
+                    <tr>
+                        <th class="text-left px-4 py-3 text-sm font-semibold text-gray-700">Product</th>
+                        <th class="text-left px-4 py-3 text-sm font-semibold text-gray-700">Blocks</th>
+                        <th class="text-left px-4 py-3 text-sm font-semibold text-gray-700">Weight (kg)</th>
+                        <th class="text-left px-4 py-3 text-sm font-semibold text-gray-700">Price per kg</th>
+                        <th class="text-left px-4 py-3 text-sm font-semibold text-gray-700">Line total</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in invoice.items.all %}
+                    <tr class="border-t border-gray-200">
+                        <td class="px-4 py-3">{{ item.product }}</td>
+                        <td class="px-4 py-3">{{ item.quantity_blocks }}</td>
+                        <td class="px-4 py-3">{{ item.total_weight_kg }}</td>
+                        <td class="px-4 py-3">${{ item.price_per_kg }}</td>
+                        <td class="px-4 py-3 font-semibold">${{ item.line_total }}</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="5" class="px-4 py-4 text-center text-gray-500">
+                            No items found for this invoice.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="bg-gray-50">
+                    <tr>
+                        <td colspan="4" class="px-4 py-3 text-right font-semibold">Total</td>
+                        <td class="px-4 py-3 font-bold text-green-700">${{ invoice.total_amount }}</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        {% if invoice.notes %}
+        <div class="mt-6">
+            <h2 class="text-lg font-semibold text-gray-800 mb-2">Notes</h2>
+            <p class="text-sm text-gray-600">{{ invoice.notes }}</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,183 @@
+from decimal import Decimal
+from django import forms
+
+from .models import (
+    PurchaseInvoice,
+    PurchaseInvoiceItem,
+    SalesInvoice,
+    SalesInvoiceItem,
+    SalesPayment,
+    SupplierProduct,
+)
+from django.forms import formset_factory
+
+
+# ─────────────────────────────────────────
+# COMPRAS
+# ─────────────────────────────────────────
+
+class PurchaseInvoiceForm(forms.ModelForm):
+    class Meta:
+        model = PurchaseInvoice
+        fields = ["supplier", "invoice_date", "freight_cost", "notes"]  # ← quitar invoice_number
+        widgets = {
+            "supplier": forms.Select(attrs={
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
+            }),
+            "invoice_date": forms.DateInput(attrs={
+                "type": "date",
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
+            }),
+            "freight_cost": forms.NumberInput(attrs={
+                "step": "0.01",
+                "min": "0",
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
+            }),
+            "notes": forms.Textarea(attrs={
+                "rows": 3,
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
+            }),
+        }
+
+
+class PurchaseInvoiceItemForm(forms.ModelForm):
+    class Meta:
+        model = PurchaseInvoiceItem
+        fields = ["supplier_product", "basket_quantity", "weight_kg"]
+        widgets = {
+            "supplier_product": forms.Select(attrs={
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
+            }),
+            "basket_quantity": forms.NumberInput(attrs={
+                "step": "0.01",
+                "min": "0",
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
+            }),
+            "weight_kg": forms.NumberInput(attrs={
+                "step": "0.01",
+                "min": "0",
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
+            }),
+        }
+
+    def __init__(self, *args, **kwargs):
+        supplier = kwargs.pop("supplier", None)
+        super().__init__(*args, **kwargs)
+        self.fields["supplier_product"].queryset = SupplierProduct.objects.none()
+        if supplier:
+            self.fields["supplier_product"].queryset = SupplierProduct.objects.filter(
+                supplier=supplier,
+                is_active=True,
+                product__is_active=True,
+            ).select_related("product", "supplier")
+
+    def clean_weight_kg(self):
+        weight = self.cleaned_data.get("weight_kg") or Decimal("0.00")
+        if weight <= 0:
+            raise forms.ValidationError("Debes ingresar un peso mayor a cero.")
+        return weight
+
+    def clean_basket_quantity(self):
+        baskets = self.cleaned_data.get("basket_quantity")
+        if baskets is not None and baskets < 0:
+            raise forms.ValidationError("La cantidad de canastas no puede ser negativa.")
+        return baskets
+
+
+# ─────────────────────────────────────────
+# VENTAS
+# ─────────────────────────────────────────
+
+class SalesInvoiceForm(forms.ModelForm):
+    # FIX: is_paid NO existe como campo en el modelo (es una @property).
+    # Se declara aquí como campo de formulario explícito, fuera de Meta.fields.
+    # La vista lo lee con: invoice_form.cleaned_data.get("is_paid", False)
+    is_paid = forms.BooleanField(
+        required=False,
+        label="Marcar como pagada",
+        widget=forms.CheckboxInput(attrs={
+            "class": "h-5 w-5 rounded border-2 border-gray-400 text-blue-600 focus:ring-blue-500",
+        }),
+    )
+
+    class Meta:
+        model = SalesInvoice
+        fields = [
+            "invoice_number",
+            "customer",
+            "invoice_date",
+            # notes eliminado
+            # is_paid se declara arriba como campo explícito, NO va en esta lista
+        ]
+        widgets = {
+            "invoice_number": forms.TextInput(attrs={
+                "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
+                "maxlength": 4,
+                "placeholder": "0001",
+            }),
+            "customer": forms.Select(attrs={
+                "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
+            }),
+            "invoice_date": forms.DateInput(attrs={
+                "type": "date",
+                "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
+            }),
+        }
+
+
+
+class SalesInvoiceItemForm(forms.ModelForm):
+    class Meta:
+        model = SalesInvoiceItem
+        fields = ["product", "blocks", "weight_kg", "unit_price"]
+        widgets = {
+            "product": forms.Select(attrs={
+                "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
+            }),
+            "blocks": forms.NumberInput(attrs={
+                "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
+                "min": "1",
+            }),
+            "weight_kg": forms.NumberInput(attrs={
+                "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
+                "step": "0.01",
+                "min": "0",
+            }),
+            "unit_price": forms.NumberInput(attrs={
+                "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
+                "step": "0.01",
+                "min": "0",
+            }),
+        }
+
+SalesInvoiceItemFormSet = formset_factory(
+    SalesInvoiceItemForm,
+    extra=1,
+    min_num=1,
+    validate_min=True,
+)
+
+
+# ─────────────────────────────────────────
+# PAGOS
+# ─────────────────────────────────────────
+
+class SalesPaymentForm(forms.ModelForm):
+    class Meta:
+        model = SalesPayment
+        fields = ["payment_date", "amount", "notes"]
+        widgets = {
+            "payment_date": forms.DateInput(attrs={
+                "type": "date",
+                "class": "w-full rounded-xl border-slate-300 px-3 py-2",
+            }),
+            "amount": forms.NumberInput(attrs={
+                "step": "0.01",
+                "min": "0.01",
+                "class": "w-full rounded-xl border-slate-300 px-3 py-2",
+            }),
+            "notes": forms.Textarea(attrs={
+                "rows": 3,
+                "class": "w-full rounded-xl border-slate-300 px-3 py-2",
+            }),
+        }

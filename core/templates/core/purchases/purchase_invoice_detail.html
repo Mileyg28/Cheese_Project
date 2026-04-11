@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Detalle compra</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="max-w-4xl mx-auto px-4 py-10">
+        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6">Factura de compra creada</h1>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 text-gray-700">
+                <div>
+                    <p class="text-sm text-gray-500">Proveedor</p>
+                    <p class="font-semibold">{{ purchase_invoice.supplier }}</p>
+                </div>
+
+                <div>
+                    <p class="text-sm text-gray-500">Número de factura</p>
+                    <p class="font-semibold">{{ purchase_invoice.invoice_number }}</p>
+                </div>
+
+                <div>
+                    <p class="text-sm text-gray-500">Fecha</p>
+                    <p class="font-semibold">{{ purchase_invoice.invoice_date }}</p>
+                </div>
+
+                <div>
+                    <p class="text-sm text-gray-500">Flete</p>
+                    <p class="font-semibold">${{ purchase_invoice.freight_cost }}</p>
+                </div>
+
+                <div>
+                    <p class="text-sm text-gray-500">Estado</p>
+                    <p class="font-semibold">{{ purchase_invoice.get_status_display }}</p>
+                </div>
+
+                <div>
+                    <p class="text-sm text-gray-500">Total</p>
+                    <p class="font-semibold">${{ purchase_invoice.total_amount }}</p>
+                </div>
+            </div>
+
+            <div class="mt-6">
+                <p class="text-sm text-gray-500">Notas</p>
+                <p class="font-medium text-gray-700">
+                    {{ purchase_invoice.notes|default:"Sin observaciones." }}
+                </p>
+            </div>
+
+            <div class="mt-8 flex gap-3">
+                <a href="{% url 'create_purchase_invoice' %}"
+                   class="inline-flex items-center rounded-xl bg-blue-600 px-5 py-3 text-white font-medium hover:bg-blue-700 transition">
+                    Nueva compra
+                </a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

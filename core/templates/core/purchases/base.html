@@ -1,0 +1,98 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Distribuidora de Quesos{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{% static 'core/css/styles.css' %}">
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800">
+
+    <header class="bg-slate-900 text-white shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+
+                <a href="{% url 'home' %}" class="flex items-center gap-3 group">
+                    <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center shadow-sm group-hover:bg-emerald-400 transition">
+                        <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z"/>
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-bold tracking-wide leading-tight">Distribuidora de Quesos</p>
+                        <p class="text-xs text-slate-400 leading-tight">Sistema de compras y ventas</p>
+                    </div>
+                </a>
+
+                <nav class="hidden md:flex items-center gap-1 text-sm">
+                    <a href="{% url 'home' %}"
+                       class="px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition font-medium">
+                        Inicio
+                    </a>
+                    <a href="{% url 'create_purchase_invoice' %}"
+                       class="px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition font-medium">
+                        Nueva compra
+                    </a>
+                    <a href="{% url 'create_sales_invoice' %}"
+                       class="px-3 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition font-medium">
+                        Nueva venta
+                    </a>
+                    <a href="/admin/"
+                       class="ml-2 px-3 py-1.5 rounded-lg border border-slate-700 hover:border-slate-500 text-slate-400 hover:text-white transition text-xs font-medium">
+                        Admin
+                    </a>
+                </nav>
+
+                {# Mobile menu button #}
+                <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')"
+                        class="md:hidden p-2 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+                    </svg>
+                </button>
+            </div>
+
+            {# Mobile menu #}
+            <div id="mobile-menu" class="hidden md:hidden pb-3 border-t border-slate-800 mt-1 pt-3 space-y-1">
+                <a href="{% url 'home' %}" class="block px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white text-sm font-medium transition">Inicio</a>
+                <a href="{% url 'create_purchase_invoice' %}" class="block px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white text-sm font-medium transition">Nueva compra</a>
+                <a href="{% url 'create_sales_invoice' %}" class="block px-3 py-2 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white text-sm font-medium transition">Nueva venta</a>
+                <a href="/admin/" class="block px-3 py-2 rounded-lg text-slate-400 hover:bg-slate-800 hover:text-white text-sm transition">Admin</a>
+            </div>
+        </div>
+    </header>
+
+    <main class="py-8">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+            {% if messages %}
+                <div class="space-y-2 mb-6">
+                    {% for message in messages %}
+                        <div class="flex items-center gap-3 rounded-xl px-4 py-3 shadow-sm border text-sm font-medium
+                            {% if message.tags == 'success' %}
+                                bg-emerald-50 border-emerald-200 text-emerald-800
+                            {% elif message.tags == 'error' %}
+                                bg-red-50 border-red-200 text-red-800
+                            {% else %}
+                                bg-white border-slate-200 text-slate-700
+                            {% endif %}">
+                            {% if message.tags == 'success' %}
+                                <svg class="w-4 h-4 text-emerald-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                            {% elif message.tags == 'error' %}
+                                <svg class="w-4 h-4 text-red-500 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z"/></svg>
+                            {% endif %}
+                            {{ message }}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% block content %}{% endblock %}
+        </div>
+    </main>
+
+    {% block extra_js %}{% endblock %}
+</body>
+</html>

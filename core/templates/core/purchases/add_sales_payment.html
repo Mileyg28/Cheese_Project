@@ -1,0 +1,99 @@
+{% extends "core/purchases/base.html" %}
+{% load static %}
+
+{% load filters %}
+
+{% block title %}Registrar pago — Factura {{ invoice.invoice_number }}{% endblock %}
+
+{% block content %}
+
+{# Breadcrumb #}
+<div class="flex items-center gap-2 text-xs text-slate-400 mb-5">
+    <a href="{% url 'home' %}" class="hover:text-slate-600 transition font-medium">Inicio</a>
+    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+    </svg>
+    <a href="{% url 'sales_invoice_detail' invoice.pk %}" class="hover:text-slate-600 transition font-medium">
+        Factura {{ invoice.invoice_number }}
+    </a>
+    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+    </svg>
+    <span class="text-slate-600 font-medium">Registrar pago</span>
+</div>
+
+<div class="max-w-2xl mx-auto space-y-5">
+
+    {# Invoice summary #}
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4">
+            <p class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Total factura</p>
+            <p class="text-2xl font-extrabold text-slate-800">${{ invoice.total_amount|floatformat:0 }}</p>
+        </div>
+        <div class="bg-emerald-50 rounded-2xl border border-emerald-200 shadow-sm px-5 py-4">
+            <p class="text-xs font-semibold uppercase tracking-widest text-emerald-600 mb-2">Ya pagado</p>
+            <p class="text-2xl font-extrabold text-emerald-700">${{ invoice.amount_paid|floatformat:0 }}</p>
+        </div>
+        <div class="bg-red-50 rounded-2xl border border-red-200 shadow-sm px-5 py-4">
+            <p class="text-xs font-semibold uppercase tracking-widest text-red-500 mb-2">Saldo pendiente</p>
+            <p class="text-2xl font-extrabold text-red-600">${{ invoice.balance_due|floatformat:0 }}</p>
+        </div>
+    </div>
+
+    {# Form card #}
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-100">
+            <h1 class="text-base font-bold text-slate-800">Registrar pago</h1>
+            <p class="text-xs text-slate-400 mt-0.5">
+                Factura {{ invoice.invoice_number }} · {{ invoice.customer.name }}
+            </p>
+        </div>
+
+        <form method="post" class="p-6 space-y-5">
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+            <div class="bg-red-50 border border-red-200 text-red-700 rounded-xl p-3 text-sm">
+                {{ form.non_field_errors }}
+            </div>
+            {% endif %}
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Fecha de pago</label>
+                {{ form.payment_date }}
+                {% if form.payment_date.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.payment_date.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Valor pagado
+                    <span class="ml-2 text-xs font-normal text-slate-400">máx. ${{ invoice.balance_due|floatformat:0 }}</span>
+                </label>
+                {{ form.amount }}
+                {% if form.amount.errors %}
+                    <p class="text-red-500 text-xs mt-1">{{ form.amount.errors.0 }}</p>
+                {% endif %}
+            </div>
+
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">Observaciones <span class="font-normal text-slate-400">(opcional)</span></label>
+                {{ form.notes }}
+            </div>
+
+            <div class="flex justify-end gap-3 pt-2">
+                <a href="{% url 'sales_invoice_detail' invoice.pk %}"
+                   class="px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:bg-slate-50 transition">
+                    Cancelar
+                </a>
+                <button type="submit"
+                        class="px-5 py-2.5 rounded-xl bg-emerald-600 text-white text-sm font-semibold hover:bg-emerald-700 transition shadow-sm">
+                    Guardar pago
+                </button>
+            </div>
+        </form>
+    </div>
+
+</div>
+{% endblock %}
