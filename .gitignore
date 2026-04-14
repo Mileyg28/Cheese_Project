@@ -1,22 +1,24 @@
-# Python
+# Entorno virtual
+.venv/
+venv/
+env/
+
+# Python cache
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
-.Python
-*.egg-info/
+*.pyc
+wsgi.cpython-*.pyc
 
-# Django
-*.log
-local_settings.py
+# Base de datos local
 db.sqlite3
-media/
 
-# Entorno virtual
-venv/
-env/
+# Variables de entorno
 .env
 
-# IDE
+# Archivos estáticos generados
+staticfiles/
+
+# VS Code
 .vscode/
-.idea/
