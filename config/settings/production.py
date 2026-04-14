@@ -8,11 +8,11 @@ ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', '').split(',')
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'Cheese23',
-        'USER': 'doadmin',
-        'PASSWORD': 'AVNS_e3HgoSglYvNL5InRatj',
-        'HOST': 'db-cheese23-do-user-35853538-0.h.db.ondigitalocean.com',
-        'PORT': '25060',
+        'NAME': os.getenv('DB_NAME', 'Cheese23'),
+        'USER': os.getenv('DB_USER', 'doadmin'),
+        'PASSWORD': os.getenv('DB_PASSWORD', 'AVNS_e3HgoSglYvNL5InRatj'),
+        'HOST': os.getenv('DB_HOST', 'db-cheese23-do-user-35853538-0.h.db.ondigitalocean.com'),
+        'PORT': os.getenv('DB_PORT', '25060'),
         'OPTIONS': {
             'sslmode': 'require',
         },
