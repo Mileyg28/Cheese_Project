@@ -1,32 +1,111 @@
 import json
 
 from django.contrib import messages
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db import transaction
-
-from .forms import PurchaseInvoiceForm, PurchaseInvoiceItemForm, SalesInvoiceForm, SalesInvoiceItemForm, SalesInvoiceItemFormSet
-from .models import Product, PurchaseInvoice, SalesInvoice, SalesPayment, Supplier, SupplierProduct
-
-from django.db.models import Sum
+from django.db.models import Sum, Q
 from decimal import Decimal
 
+from .forms import (
+    PurchaseInvoiceForm,
+    PurchaseInvoiceItemForm,
+    SalesInvoiceForm,
+    SalesInvoiceItemForm,
+    SalesInvoiceItemFormSet,
+    SalesPaymentForm,
+)
+from .models import Product, PurchaseInvoice, SalesInvoice, SalesPayment, Supplier, SupplierProduct
+
+
+# ── Role helpers ───────────────────────────────────────────────────────────────
+
+def is_administrator(user):
+    return user.is_superuser or user.groups.filter(name="administrator").exists()
+
+
+def is_operator_or_admin(user):
+    return user.is_superuser or user.groups.filter(
+        name__in=["administrator", "operator"]
+    ).exists()
+
+
+# ── Home ───────────────────────────────────────────────────────────────────────
+
+@login_required
 def home(request):
-    purchase_invoices = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
+    is_admin = is_administrator(request.user)
+
+    # ── Filtros de ventas (prefijo v_) ────────────────────────────
+    v_estado   = request.GET.get("v_estado", "").strip()
+    v_fecha_desde = request.GET.get("v_fecha_desde", "").strip()
+    v_fecha_hasta = request.GET.get("v_fecha_hasta", "").strip()
+
     sales_invoices = SalesInvoice.objects.select_related("customer").order_by("-invoice_date", "-id")
 
+    if v_estado:
+        sales_invoices = sales_invoices.filter(status=v_estado)
+    if v_fecha_desde:
+        sales_invoices = sales_invoices.filter(invoice_date__gte=v_fecha_desde)
+    if v_fecha_hasta:
+        sales_invoices = sales_invoices.filter(invoice_date__lte=v_fecha_hasta)
+
+    # Determinar tab activo: si se envió algún filtro de compras, activar compras; si no, ventas
+    active_tab = request.GET.get("tab", "compras" if is_admin else "ventas")
+
     context = {
-        "purchase_invoices": purchase_invoices,
+        "is_admin": is_admin,
+        "active_tab": active_tab,
         "sales_invoices": sales_invoices,
-        "total_purchase_invoices": purchase_invoices.count(),
         "total_sales_invoices": sales_invoices.count(),
-        "total_purchased": purchase_invoices.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
-        "total_sold": sales_invoices.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
+        # Valores actuales de filtros de ventas (para repoblar los inputs)
+        "v_estado": v_estado,
+        "v_fecha_desde": v_fecha_desde,
+        "v_fecha_hasta": v_fecha_hasta,
     }
+
+    if is_admin:
+        # ── Filtros de compras (prefijo c_) ───────────────────────
+        c_estado      = request.GET.get("c_estado", "").strip()
+        c_fecha_desde = request.GET.get("c_fecha_desde", "").strip()
+        c_fecha_hasta = request.GET.get("c_fecha_hasta", "").strip()
+
+        purchase_invoices = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
+
+        if c_estado:
+            purchase_invoices = purchase_invoices.filter(status=c_estado)
+        if c_fecha_desde:
+            purchase_invoices = purchase_invoices.filter(invoice_date__gte=c_fecha_desde)
+        if c_fecha_hasta:
+            purchase_invoices = purchase_invoices.filter(invoice_date__lte=c_fecha_hasta)
+
+        # Totales sobre el queryset SIN filtros para las tarjetas de resumen
+        all_purchases = PurchaseInvoice.objects.all()
+        all_sales     = SalesInvoice.objects.all()
+
+        context.update({
+            "purchase_invoices": purchase_invoices,
+            "total_purchase_invoices": purchase_invoices.count(),
+            "total_purchased": all_purchases.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
+            "total_sold":      all_sales.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
+            # Valores actuales de filtros de compras
+            "c_estado": c_estado,
+            "c_fecha_desde": c_fecha_desde,
+            "c_fecha_hasta": c_fecha_hasta,
+        })
+
     return render(request, "core/purchases/home.html", context)
 
 
+# ── Purchases (administrator only) ────────────────────────────────────────────
+
+@login_required
 def create_purchase_invoice(request):
+    if not is_administrator(request.user):
+        raise PermissionDenied
+
     supplier_id = request.GET.get("supplier") or request.POST.get("supplier")
     selected_supplier = None
 
@@ -40,7 +119,6 @@ def create_purchase_invoice(request):
         if invoice_form.is_valid() and item_form.is_valid():
             invoice = invoice_form.save(commit=False)
 
-            # Generar número automático
             last = PurchaseInvoice.objects.order_by("-id").first()
             next_number = (int(last.invoice_number) + 1) if last and last.invoice_number.isdigit() else 1
             invoice.invoice_number = str(next_number)
@@ -68,8 +146,14 @@ def create_purchase_invoice(request):
     }
     return render(request, "core/purchases/create_purchase_invoice.html", context)
 
-# Ajax para obtener los productos de un proveedor
+
+# ── Ajax supplier products ─────────────────────────────────────────────────────
+
+@login_required
 def get_supplier_products(request):
+    if not is_administrator(request.user):
+        raise PermissionDenied
+
     supplier_id = request.GET.get("supplier_id")
 
     if not supplier_id:
@@ -94,9 +178,14 @@ def get_supplier_products(request):
     return JsonResponse({"products": products})
 
 
-# vista para la factura de venta
+# ── Sales ──────────────────────────────────────────────────────────────────────
+
+@login_required
 @transaction.atomic
 def create_sales_invoice(request):
+    if not is_operator_or_admin(request.user):
+        raise PermissionDenied
+
     if request.method == "POST":
         invoice_form = SalesInvoiceForm(request.POST)
         item_formset = SalesInvoiceItemFormSet(request.POST, prefix="items")
@@ -130,22 +219,21 @@ def create_sales_invoice(request):
                 invoice.refresh_from_db()
 
             messages.success(request, "Factura de venta creada correctamente.")
-            return redirect("sales_invoice_detail", pk=invoice.pk)
+            return redirect("create_sales_invoice")
 
     else:
         invoice_form = SalesInvoiceForm()
         item_formset = SalesInvoiceItemFormSet(prefix="items")
 
-    # Corre en GET y en POST con errores
     products_data = {
-    str(p.id): {
-        "pricing_type": p.sale_pricing_type,
-        "requires_weight": p.requires_weight,
-        "requires_blocks": p.requires_blocks,
-        "kg_per_block": float(p.kg_per_block) if p.kg_per_block else None,
+        str(p.id): {
+            "pricing_type": p.sale_pricing_type,
+            "requires_weight": p.requires_weight,
+            "requires_blocks": p.requires_blocks,
+            "kg_per_block": float(p.kg_per_block) if p.kg_per_block else None,
+        }
+        for p in Product.objects.filter(is_active=True)
     }
-    for p in Product.objects.filter(is_active=True)
-}
 
     context = {
         "invoice_form": invoice_form,
@@ -155,7 +243,11 @@ def create_sales_invoice(request):
     return render(request, "core/purchases/create_sales_invoice.html", context)
 
 
+@login_required
 def sales_invoice_detail(request, pk):
+    if not is_operator_or_admin(request.user):
+        raise PermissionDenied
+
     invoice = get_object_or_404(
         SalesInvoice.objects.select_related("customer").prefetch_related("items__product"),
         pk=pk,
@@ -163,31 +255,29 @@ def sales_invoice_detail(request, pk):
     return render(request, "core/purchases/sales_invoice_detail.html", {"invoice": invoice})
 
 
-#VISTA PARA INGRESAR UN PAGO
-
-from django.contrib import messages
-from django.shortcuts import get_object_or_404, redirect, render
-
-from .forms import SalesPaymentForm
-from .models import SalesInvoice
-
-
+@login_required
 def add_sales_payment(request, pk):
+    if not is_operator_or_admin(request.user):
+        raise PermissionDenied
+
     invoice = get_object_or_404(
         SalesInvoice.objects.select_related("customer"),
         pk=pk,
     )
 
     if request.method == "POST":
-        form = SalesPaymentForm(request.POST)
+        form = SalesPaymentForm(request.POST, invoice=invoice)
         if form.is_valid():
-            payment = form.save(commit=False)
-            payment.invoice = invoice
-            payment.save()
-            messages.success(request, "Pago registrado correctamente.")
-            return redirect("sales_invoice_detail", pk=invoice.pk)
+            try:
+                payment = form.save(commit=False)
+                payment.invoice = invoice
+                payment.save()
+                messages.success(request, "Pago registrado correctamente.")
+                return redirect("sales_invoice_detail", pk=invoice.pk)
+            except Exception as e:
+                form.add_error("amount", str(e))
     else:
-        form = SalesPaymentForm()
+        form = SalesPaymentForm(invoice=invoice)
 
     context = {
         "invoice": invoice,

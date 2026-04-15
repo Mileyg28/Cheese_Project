@@ -1,3 +1,9 @@
+# Ignorar todas las carpetas __pycache__
+__pycache__/
+# Ignorar base de datos local
+db.sqlite3
+# Ignorar archivos compilados de Python en core
+core/__pycache__/
 # Entorno virtual
 .venv/
 venv/
@@ -22,3 +28,4 @@ staticfiles/
 
 # VS Code
 .vscode/
+

@@ -89,7 +89,7 @@ AUTH_PASSWORD_VALIDATORS = [
 ]
 
 LOGIN_URL = '/login/'
-LOGIN_REDIRECT_URL = '/loans/loan_list/'  # o la URL que uses para el inicio
+LOGIN_REDIRECT_URL = '/'  # o la URL que uses para el inicio
 
 
 
@@ -120,3 +120,9 @@ LOGGING = {
 }
 
 
+DEBUG = True
+
+STATIC_URL = '/static/'
+STATICFILES_DIRS = [
+    BASE_DIR / 'core' / 'static',
+]

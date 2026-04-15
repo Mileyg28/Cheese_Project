@@ -152,7 +152,7 @@ class SalesInvoiceItemForm(forms.ModelForm):
 
 SalesInvoiceItemFormSet = formset_factory(
     SalesInvoiceItemForm,
-    extra=1,
+    extra=0,
     min_num=1,
     validate_min=True,
 )
@@ -163,21 +163,43 @@ SalesInvoiceItemFormSet = formset_factory(
 # ─────────────────────────────────────────
 
 class SalesPaymentForm(forms.ModelForm):
+
+    def __init__(self, *args, **kwargs):
+        self.invoice = kwargs.pop("invoice", None)
+        super().__init__(*args, **kwargs)
+
+    def fmt(self, n):
+        return f"{int(round(float(n))):,}".replace(",", ".")
+
+    def clean_amount(self):
+        amount = self.cleaned_data.get("amount")
+        if amount is None:
+            return amount
+        if amount <= 0:
+            raise forms.ValidationError("El valor del pago debe ser mayor que cero.")
+        if self.invoice and amount > self.invoice.balance_due:
+            raise forms.ValidationError(
+                f"El pago (${self.fmt(amount)}) no puede superar el saldo pendiente (${self.fmt(self.invoice.balance_due)})."
+            )
+        return amount
+
     class Meta:
         model = SalesPayment
         fields = ["payment_date", "amount", "notes"]
         widgets = {
             "payment_date": forms.DateInput(attrs={
                 "type": "date",
-                "class": "w-full rounded-xl border-slate-300 px-3 py-2",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none transition",
             }),
             "amount": forms.NumberInput(attrs={
-                "step": "0.01",
-                "min": "0.01",
-                "class": "w-full rounded-xl border-slate-300 px-3 py-2",
+                "step": "any",
+                "min": "1",
+                "placeholder": "0",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none transition",
             }),
             "notes": forms.Textarea(attrs={
                 "rows": 3,
-                "class": "w-full rounded-xl border-slate-300 px-3 py-2",
+                "placeholder": "Ej: Pago en efectivo, transferencia…",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none transition resize-none",
             }),
         }

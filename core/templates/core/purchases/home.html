@@ -7,6 +7,7 @@
 {% block content %}
 
 {# ── Stats bar ── #}
+{% if is_admin %}
 <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4">
         <p class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Facturas de compra</p>
@@ -25,54 +26,110 @@
         <p class="text-3xl font-extrabold text-blue-700">{{ total_sold|pesos }}</p>
     </div>
 </div>
+{% else %}
+<div class="mb-6">
+    <div class="bg-blue-50 rounded-2xl border border-blue-200 shadow-sm px-5 py-4 max-w-xs">
+        <p class="text-xs font-semibold uppercase tracking-widest text-blue-600 mb-2">Facturas de venta</p>
+        <p class="text-3xl font-extrabold text-blue-700">{{ total_sales_invoices }}</p>
+    </div>
+</div>
+{% endif %}
 
-{# ── Main card with tabs ── #}
+{# ── Main card con tabs ── #}
 <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
 
     {# Tab buttons #}
     <div class="flex border-b border-slate-200">
+        {% if is_admin %}
         <button id="btn-compras" onclick="switchTab('compras')"
-                class="flex-1 flex items-center justify-center gap-2 px-6 py-4 text-sm font-semibold transition-all bg-slate-900 text-white">
+                class="flex-1 flex items-center justify-center gap-2 px-6 py-4 text-sm font-semibold transition-all
+                {% if active_tab == 'compras' %}bg-slate-900 text-white{% else %}text-slate-500 hover:bg-slate-50{% endif %}">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.5 6h11M10 19a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm8 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
             </svg>
             Facturas de compra
-            <span class="ml-1 px-2 py-0.5 rounded-full text-xs bg-white/20">{{ total_purchase_invoices }}</span>
+            <span class="ml-1 px-2 py-0.5 rounded-full text-xs {% if active_tab == 'compras' %}bg-white/20{% else %}bg-slate-100{% endif %}">{{ total_purchase_invoices }}</span>
         </button>
+        {% endif %}
+
         <button id="btn-ventas" onclick="switchTab('ventas')"
-                class="flex-1 flex items-center justify-center gap-2 px-6 py-4 text-sm font-semibold transition-all text-slate-500 hover:bg-slate-50">
+                class="flex-1 flex items-center justify-center gap-2 px-6 py-4 text-sm font-semibold transition-all
+                {% if active_tab == 'ventas' or not is_admin %}bg-slate-900 text-white{% else %}text-slate-500 hover:bg-slate-50{% endif %}">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/>
             </svg>
             Facturas de venta
-            <span class="ml-1 px-2 py-0.5 rounded-full text-xs bg-slate-100">{{ total_sales_invoices }}</span>
+            <span class="ml-1 px-2 py-0.5 rounded-full text-xs {% if active_tab == 'ventas' or not is_admin %}bg-white/20{% else %}bg-slate-100{% endif %}">{{ total_sales_invoices }}</span>
         </button>
     </div>
 
-    {# Action bars #}
-    <div id="action-compras" class="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
-        <p class="text-xs text-slate-400 font-medium">Historial de compras a proveedores</p>
-        <a href="{% url 'create_purchase_invoice' %}"
-           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition shadow-sm">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-            </svg>
-            Nueva compra
-        </a>
-    </div>
-    <div id="action-ventas" class="hidden flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
-        <p class="text-xs text-slate-400 font-medium">Historial de ventas a clientes</p>
-        <a href="{% url 'create_sales_invoice' %}"
-           class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition shadow-sm">
-            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
-            </svg>
-            Nueva venta
-        </a>
-    </div>
+    {% if is_admin %}
+    <div id="panel-compras" class="{% if active_tab != 'compras' %}hidden{% endif %}">
 
-    {# ── COMPRAS TABLE ── #}
-    <div id="panel-compras">
+        {# Barra acción + botón nueva compra #}
+        <div id="action-compras" class="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
+            <p class="text-xs text-slate-400 font-medium">Historial de compras a proveedores</p>
+            <a href="{% url 'create_purchase_invoice' %}"
+               class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-semibold hover:bg-emerald-700 transition shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                </svg>
+                Nueva compra
+            </a>
+        </div>
+
+        {# Filtros de compras #}
+        <form method="get" id="form-compras"
+              class="flex flex-wrap items-end gap-3 px-5 py-4 bg-slate-50 border-b border-slate-100">
+            <input type="hidden" name="tab" value="compras">
+
+            {% if v_estado %}<input type="hidden" name="v_estado" value="{{ v_estado }}">{% endif %}
+            {% if v_fecha_desde %}<input type="hidden" name="v_fecha_desde" value="{{ v_fecha_desde }}">{% endif %}
+            {% if v_fecha_hasta %}<input type="hidden" name="v_fecha_hasta" value="{{ v_fecha_hasta }}">{% endif %}
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-semibold text-slate-500">Estado</label>
+                <select name="c_estado"
+                        class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 w-36">
+                    <option value="">Todos</option>
+                    <option value="pending"  {% if c_estado == 'pending'  %}selected{% endif %}>Pendiente</option>
+                    <option value="partial"  {% if c_estado == 'partial'  %}selected{% endif %}>Parcial</option>
+                    <option value="paid"     {% if c_estado == 'paid'     %}selected{% endif %}>Pagada</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-semibold text-slate-500">Desde</label>
+                <input type="date" name="c_fecha_desde" value="{{ c_fecha_desde }}"
+                       class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-semibold text-slate-500">Hasta</label>
+                <input type="date" name="c_fecha_hasta" value="{{ c_fecha_hasta }}"
+                       class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+            </div>
+
+            <button type="submit"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+                </svg>
+                Filtrar
+            </button>
+
+            {% if c_estado or c_fecha_desde or c_fecha_hasta %}
+            <a href="?tab=compras"
+               class="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-300 text-slate-500 text-sm hover:bg-slate-100 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                Limpiar
+            </a>
+            {% endif %}
+        </form>
+
+        {# Tabla compras #}
         {% if purchase_invoices %}
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
@@ -121,20 +178,88 @@
             </table>
         </div>
         {% else %}
-        <div class="flex flex-col items-center justify-center py-20 text-slate-400">
-            <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-                <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
-                </svg>
-            </div>
-            <p class="text-sm font-semibold text-slate-500">Sin facturas de compra</p>
-            <p class="text-xs mt-1">Usa el botón "Nueva compra" para registrar tu primera compra.</p>
+        <div class="flex flex-col items-center justify-center py-16 text-slate-400">
+            <svg class="w-10 h-10 text-slate-300 mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"/>
+            </svg>
+            {% if c_estado or c_fecha_desde or c_fecha_hasta %}
+                <p class="text-sm font-semibold text-slate-500">Sin resultados para los filtros aplicados.</p>
+                <a href="?tab=compras" class="text-xs mt-2 text-blue-500 hover:underline">Limpiar filtros</a>
+            {% else %}
+                <p class="text-sm font-semibold text-slate-500">Sin facturas de compra</p>
+                <p class="text-xs mt-1">Usa el botón "Nueva compra" para registrar tu primera compra.</p>
+            {% endif %}
         </div>
         {% endif %}
     </div>
+    {% endif %}
 
-    {# ── VENTAS TABLE ── #}
-    <div id="panel-ventas" class="hidden">
+    <div id="panel-ventas" class="{% if active_tab != 'ventas' and is_admin %}hidden{% endif %}">
+
+        {# Barra acción + botón nueva venta #}
+        <div id="action-ventas" class="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100">
+            <p class="text-xs text-slate-400 font-medium">Historial de ventas a clientes</p>
+            <a href="{% url 'create_sales_invoice' %}"
+               class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition shadow-sm">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+                </svg>
+                Nueva venta
+            </a>
+        </div>
+
+        {# Filtros de ventas #}
+        <form method="get" id="form-ventas"
+              class="flex flex-wrap items-end gap-3 px-5 py-4 bg-slate-50 border-b border-slate-100">
+            <input type="hidden" name="tab" value="ventas">
+
+            {% if c_estado %}<input type="hidden" name="c_estado" value="{{ c_estado }}">{% endif %}
+            {% if c_fecha_desde %}<input type="hidden" name="c_fecha_desde" value="{{ c_fecha_desde }}">{% endif %}
+            {% if c_fecha_hasta %}<input type="hidden" name="c_fecha_hasta" value="{{ c_fecha_hasta }}">{% endif %}
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-semibold text-slate-500">Estado</label>
+                <select name="v_estado"
+                        class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400 w-36">
+                    <option value="">Todos</option>
+                    <option value="pending"  {% if v_estado == 'pending'  %}selected{% endif %}>Pendiente</option>
+                    <option value="partial"  {% if v_estado == 'partial'  %}selected{% endif %}>Abonada</option>
+                    <option value="paid"     {% if v_estado == 'paid'     %}selected{% endif %}>Pagada</option>
+                </select>
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-semibold text-slate-500">Desde</label>
+                <input type="date" name="v_fecha_desde" value="{{ v_fecha_desde }}"
+                       class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+            </div>
+
+            <div class="flex flex-col gap-1">
+                <label class="text-xs font-semibold text-slate-500">Hasta</label>
+                <input type="date" name="v_fecha_hasta" value="{{ v_fecha_hasta }}"
+                       class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-slate-400">
+            </div>
+
+            <button type="submit"
+                    class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/>
+                </svg>
+                Filtrar
+            </button>
+
+            {% if v_estado or v_fecha_desde or v_fecha_hasta %}
+            <a href="?tab=ventas"
+               class="inline-flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-300 text-slate-500 text-sm hover:bg-slate-100 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+                Limpiar
+            </a>
+            {% endif %}
+        </form>
+
+        {# Tabla ventas #}
         {% if sales_invoices %}
         <div class="overflow-x-auto">
             <table class="min-w-full text-sm">
@@ -144,8 +269,10 @@
                         <th class="px-5 py-3 text-left">Cliente</th>
                         <th class="px-5 py-3 text-left">Fecha</th>
                         <th class="px-5 py-3 text-right">Total</th>
+                        {% if is_admin %}
                         <th class="px-5 py-3 text-right">Pagado</th>
                         <th class="px-5 py-3 text-right">Saldo</th>
+                        {% endif %}
                         <th class="px-5 py-3 text-center">Estado</th>
                         <th class="px-5 py-3 text-center">Acciones</th>
                     </tr>
@@ -156,7 +283,14 @@
                         <td class="px-5 py-3.5 font-mono font-semibold text-slate-700 text-xs">{{ inv.invoice_number }}</td>
                         <td class="px-5 py-3.5 font-medium text-slate-800">{{ inv.customer.name }}</td>
                         <td class="px-5 py-3.5 text-slate-500">{{ inv.invoice_date }}</td>
-                        <td class="px-5 py-3.5 text-right font-semibold text-slate-800">{{ inv.total_amount|pesos }}</td>
+                        <td class="px-5 py-3.5 text-right font-semibold text-slate-800">
+                            {% if is_admin %}
+                                {{ inv.total_amount|pesos }}
+                            {% else %}
+                                <span class="text-slate-400">—</span>
+                            {% endif %}
+                        </td>
+                        {% if is_admin %}
                         <td class="px-5 py-3.5 text-right text-emerald-600 font-medium">{{ inv.amount_paid|pesos }}</td>
                         <td class="px-5 py-3.5 text-right">
                             {% if inv.balance_due > 0 %}
@@ -165,6 +299,7 @@
                                 <span class="text-emerald-500 font-semibold">—</span>
                             {% endif %}
                         </td>
+                        {% endif %}
                         <td class="px-5 py-3.5 text-center">
                             {% if inv.status == 'paid' %}
                                 <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Pagada</span>
@@ -191,14 +326,17 @@
             </table>
         </div>
         {% else %}
-        <div class="flex flex-col items-center justify-center py-20 text-slate-400">
-            <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
-                <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/>
-                </svg>
-            </div>
-            <p class="text-sm font-semibold text-slate-500">Sin facturas de venta</p>
-            <p class="text-xs mt-1">Usa el botón "Nueva venta" para registrar tu primera venta.</p>
+        <div class="flex flex-col items-center justify-center py-16 text-slate-400">
+            <svg class="w-10 h-10 text-slate-300 mb-3" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/>
+            </svg>
+            {% if v_estado or v_fecha_desde or v_fecha_hasta %}
+                <p class="text-sm font-semibold text-slate-500">Sin resultados para los filtros aplicados.</p>
+                <a href="?tab=ventas" class="text-xs mt-2 text-blue-500 hover:underline">Limpiar filtros</a>
+            {% else %}
+                <p class="text-sm font-semibold text-slate-500">Sin facturas de venta</p>
+                <p class="text-xs mt-1">Usa el botón "Nueva venta" para registrar tu primera venta.</p>
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -208,19 +346,24 @@
 
 {% block extra_js %}
 <script>
+const activeTab = "{{ active_tab }}";
+
 function switchTab(tab) {
+    {% if is_admin %}
     const isCompras = tab === 'compras';
+
     document.getElementById('panel-compras').classList.toggle('hidden', !isCompras);
     document.getElementById('panel-ventas').classList.toggle('hidden', isCompras);
-    document.getElementById('action-compras').classList.toggle('hidden', !isCompras);
-    document.getElementById('action-ventas').classList.toggle('hidden', isCompras);
 
-    const btnC = document.getElementById('btn-compras');
-    const btnV = document.getElementById('btn-ventas');
-    const activeClass = 'flex-1 flex items-center justify-center gap-2 px-6 py-4 text-sm font-semibold transition-all bg-slate-900 text-white';
+    const activeClass   = 'flex-1 flex items-center justify-center gap-2 px-6 py-4 text-sm font-semibold transition-all bg-slate-900 text-white';
     const inactiveClass = 'flex-1 flex items-center justify-center gap-2 px-6 py-4 text-sm font-semibold transition-all text-slate-500 hover:bg-slate-50';
-    btnC.className = isCompras ? activeClass : inactiveClass;
-    btnV.className = isCompras ? inactiveClass : activeClass;
+
+    document.getElementById('btn-compras').className = isCompras ? activeClass : inactiveClass;
+    document.getElementById('btn-ventas').className  = isCompras ? inactiveClass : activeClass;
+
+    document.querySelector('#form-compras input[name="tab"]').value = tab;
+    document.querySelector('#form-ventas  input[name="tab"]').value = tab;
+    {% endif %}
 }
 </script>
 {% endblock %}

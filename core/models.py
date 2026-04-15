@@ -1,4 +1,5 @@
 from decimal import Decimal
+from email import errors
 
 from django.core.exceptions import ValidationError
 from django.db import models
@@ -442,7 +443,9 @@ class PurchasePayment(TimeStampedModel):
         return f"{self.invoice.invoice_number} - {self.amount}"
 
     def clean(self):
-        if self.amount <= 0:
+        if self.amount is None:
+            errors["amount"] = "El valor del pago es obligatorio."
+        elif self.amount <= 0:
             raise ValidationError({"amount": "Payment amount must be greater than zero."})
 
     def save(self, *args, **kwargs):
@@ -699,16 +702,16 @@ class SalesPayment(TimeStampedModel):
     def clean(self):
         errors = {}
 
-        if self.amount <= 0:
+        if self.amount is None:
+            errors["amount"] = "El valor del pago es obligatorio."
+        elif self.amount <= 0:
             errors["amount"] = "El valor del pago debe ser mayor que cero."
-
-        if self.invoice_id:
+        elif self.invoice_id:
             current_paid = (
                 self.invoice.payments.exclude(pk=self.pk).aggregate(total=Sum("amount")).get("total")
                 or Decimal("0.00")
             )
             remaining_balance = self.invoice.total_amount - current_paid
-
             if self.amount > remaining_balance:
                 errors["amount"] = "El pago no puede ser mayor al saldo pendiente de la factura."
 
