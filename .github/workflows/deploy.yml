@@ -1,0 +1,42 @@
+name: Deploy to DigitalOcean Droplet
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DROPLET_SSH_KEY }}
+
+      - name: Deploy to Droplet
+        run: |
+          ssh -o StrictHostKeyChecking=no root@167.71.176.136 "
+            set -e
+            export DEBIAN_FRONTEND=noninteractive
+            apt-get update -y && apt-get install -y --no-install-recommends \
+              python3-venv build-essential \
+              libcairo2 libpango-1.0-0 libpangocairo-1.0-0 \
+              libgdk-pixbuf-2.0-0 libffi8 libxml2 libxslt1.1 \
+              libjpeg-turbo8 libpng16-16 libopenjp2-7 libwebp7 libtiff6 \
+              libharfbuzz0b libfribidi0 libssl3 libfontconfig1 \
+              fonts-dejavu-core fonts-liberation
+            cd /opt/cheese_project && \
+            git pull origin main && \
+            if [ ! -d /opt/cheese_project/venv ]; then python3 -m venv /opt/cheese_project/venv; fi && \
+            source /opt/cheese_project/venv/bin/activate && \
+            pip install -r requirements.txt && \
+            python manage.py check --settings=config.settings.production && \
+            python manage.py migrate --settings=config.settings.production && \
+            python manage.py collectstatic --noinput --settings=config.settings.production && \
+            sudo systemctl restart gunicorn && \
+            sudo systemctl restart nginx
+          "
