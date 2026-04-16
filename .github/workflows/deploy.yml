@@ -30,6 +30,8 @@ jobs:
               libharfbuzz0b libfribidi0 libssl3 libfontconfig1 \
               fonts-dejavu-core fonts-liberation
             cd /opt/cheese/Cheese_Project && \
+            git fetch origin && \
+            git clean -fd && \
             git pull origin main && \
             if [ ! -d /opt/cheese/Cheese_Project/venv ]; then python3 -m venv /opt/cheese/Cheese_Project/venv; fi && \
             source /opt/cheese/Cheese_Project/venv/bin/activate && \
