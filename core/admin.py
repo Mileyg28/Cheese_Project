@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User, Group
 from django import forms
 
-from .models import Customer, Product, Supplier, SupplierProduct
+from .models import Customer, Mensajero, Product, Supplier, SupplierProduct
 
 
 # ── Custom user creation form ──────────────────────────────────────────────────
@@ -163,4 +163,13 @@ class CustomerAdmin(admin.ModelAdmin):
         "neighborhood",
         "created_at",
     )
+    ordering = ("name",)
+
+# ── Mensajero ─────────────────────────────────────────────────────────────────
+ 
+@admin.register(Mensajero)
+class MensajeroAdmin(admin.ModelAdmin):
+    list_display = ("name", "phone", "is_active", "created_at")
+    list_filter = ("is_active",)
+    search_fields = ("name", "phone")
     ordering = ("name",)

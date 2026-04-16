@@ -153,7 +153,20 @@ class Customer(TimeStampedModel):
     @property
     def balance_due(self):
         return self.total_invoiced - self.total_paid
-
+# ── Mensajero ──────────────────────────────────────────────────────────────────
+ 
+class Mensajero(TimeStampedModel):
+    name = models.CharField(max_length=150, verbose_name="Nombre")
+    phone = models.CharField(max_length=20, blank=True, verbose_name="Teléfono")
+    is_active = models.BooleanField(default=True, verbose_name="Activo")
+ 
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Mensajero"
+        verbose_name_plural = "Mensajeros"
+ 
+    def __str__(self):
+        return self.name
 
 class SupplierProduct(TimeStampedModel):
     supplier = models.ForeignKey(
@@ -486,6 +499,14 @@ class SalesInvoice(TimeStampedModel):
         on_delete=models.PROTECT,
         related_name="sales_invoices",
         verbose_name="Cliente",
+    )
+    mensajero = models.ForeignKey(
+        Mensajero,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="sales_invoices",
+        verbose_name="Mensajero",
     )
     invoice_date = models.DateField(
         default=timezone.localdate,

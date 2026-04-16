@@ -2,6 +2,7 @@ from decimal import Decimal
 from django import forms
 
 from .models import (
+    Mensajero,
     PurchaseInvoice,
     PurchaseInvoiceItem,
     PurchasePayment,
@@ -148,6 +149,7 @@ class SalesInvoiceForm(forms.ModelForm):
             "invoice_number",
             "customer",
             "invoice_date",
+            "mensajero",
             # notes eliminado
             # is_paid se declara arriba como campo explícito, NO va en esta lista
         ]
@@ -160,12 +162,20 @@ class SalesInvoiceForm(forms.ModelForm):
             "customer": forms.Select(attrs={
                 "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
             }),
+            "mensajero": forms.Select(attrs={
+                "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
+            }),
             "invoice_date": forms.DateInput(attrs={
                 "type": "date",
                 "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
             }),
         }
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["mensajero"].queryset = Mensajero.objects.filter(is_active=True)
+        self.fields["mensajero"].empty_label = "— Sin mensajero —"
+        self.fields["mensajero"].required = False
 
 
 class SalesInvoiceItemForm(forms.ModelForm):
