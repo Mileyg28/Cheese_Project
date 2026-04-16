@@ -165,13 +165,16 @@
                             {% endif %}
                         </td>
                         <td class="px-4 py-3 text-center whitespace-nowrap">
+                        <div class="flex items-center justify-center gap-3">
+                            <a href="{% url 'purchase_invoice_detail' inv.pk %}"
+                            class="text-xs text-blue-600 hover:text-blue-800 font-semibold hover:underline underline-offset-2">Ver</a>
                             {% if inv.status != 'paid' %}
-                                <a href="{% url 'add_purchase_payment' inv.pk %}"
-                                   class="text-xs text-emerald-600 hover:text-emerald-800 font-semibold hover:underline underline-offset-2">Registrar pago</a>
-                            {% else %}
-                                <span class="text-xs text-slate-300">—</span>
+                            <span class="text-slate-200 select-none">|</span>
+                            <a href="{% url 'add_purchase_payment' inv.pk %}"
+                            class="text-xs text-emerald-600 hover:text-emerald-800 font-semibold hover:underline underline-offset-2">Registrar pago</a>
                             {% endif %}
-                        </td>
+                        </div>
+                    </td>
                     </tr>
                     {% endfor %}
                 </tbody>

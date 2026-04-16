@@ -19,6 +19,13 @@ from django.forms import formset_factory
 # ─────────────────────────────────────────
 
 class PurchaseInvoiceForm(forms.ModelForm):
+    is_paid = forms.BooleanField(
+        required=False,
+        label="Marcar como pagada",
+        widget=forms.CheckboxInput(attrs={
+            "class": "h-5 w-5 rounded border-2 border-slate-400 text-emerald-600 focus:ring-emerald-500",
+        }),
+    )
     class Meta:
         model = PurchaseInvoice
         fields = ["supplier", "invoice_date", "freight_cost", "notes"]  # ← quitar invoice_number

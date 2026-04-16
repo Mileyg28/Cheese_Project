@@ -115,6 +115,13 @@
                         <p class="text-sm text-red-600 mt-1">{{ item_form.weight_kg.errors.0 }}</p>
                     {% endif %}
                 </div>
+
+                <div class="flex items-end">
+                    <div class="flex items-center gap-2 rounded-xl border border-slate-300 px-4 py-2.5 bg-slate-50 w-full">
+                        {{ invoice_form.is_paid }}
+                        <span class="text-sm text-slate-700 font-medium">Marcar como pagada</span>
+                    </div>
+                </div>
             </div>
         </div>
 

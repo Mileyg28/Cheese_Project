@@ -19,7 +19,7 @@ from .forms import (
     SalesInvoiceItemFormSet,
     SalesPaymentForm,
 )
-from .models import Product, PurchaseInvoice, SalesInvoice, SalesPayment, Supplier, SupplierProduct
+from .models import Product, PurchaseInvoice, PurchasePayment, SalesInvoice, SalesPayment, Supplier, SupplierProduct
 
 
 # ── Role helpers ───────────────────────────────────────────────────────────────
@@ -122,6 +122,8 @@ def create_purchase_invoice(request):
         item_form = PurchaseInvoiceItemForm(request.POST, supplier=selected_supplier)
 
         if invoice_form.is_valid() and item_form.is_valid():
+            is_paid = invoice_form.cleaned_data.get("is_paid", False)
+
             invoice = invoice_form.save(commit=False)
 
             last = PurchaseInvoice.objects.order_by("-id").first()
@@ -133,6 +135,17 @@ def create_purchase_invoice(request):
             item = item_form.save(commit=False)
             item.invoice = invoice
             item.save()
+
+            # Si se marcó como pagada, crear el pago automáticamente
+            invoice.refresh_from_db()
+            if is_paid and invoice.total_amount > 0:
+                PurchasePayment.objects.create(
+                    invoice=invoice,
+                    payment_date=invoice.invoice_date,
+                    amount=invoice.total_amount,
+                    notes="Pago registrado automáticamente al crear la factura.",
+                )
+                invoice.refresh_from_db()
 
             messages.success(request, f"Factura de compra #{invoice.invoice_number} creada correctamente.")
             return redirect("create_purchase_invoice")
@@ -182,6 +195,23 @@ def get_supplier_products(request):
 
     return JsonResponse({"products": products})
 
+
+# ── Purchase invoice detail ────────────────────────────────────────────────────
+ 
+@login_required
+def purchase_invoice_detail(request, pk):
+    if not is_administrator(request.user):
+        raise PermissionDenied
+ 
+    invoice = get_object_or_404(
+        PurchaseInvoice.objects.select_related("supplier").prefetch_related(
+            "items__supplier_product__product", "payments"
+        ),
+        pk=pk,
+    )
+    return render(request, "core/purchases/purchase_invoice_detail.html", {"invoice": invoice})
+
+# ── Purchase payment ───────────────────────────────────────────────────────────
 @login_required
 def add_purchase_payment(request, pk):
     if not is_administrator(request.user):
