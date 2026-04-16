@@ -29,10 +29,10 @@ jobs:
               libjpeg-turbo8 libpng16-16 libopenjp2-7 libwebp7 libtiff6 \
               libharfbuzz0b libfribidi0 libssl3 libfontconfig1 \
               fonts-dejavu-core fonts-liberation
-            cd /opt/cheese_project && \
+            cd /opt/cheese/Cheese_Project && \
             git pull origin main && \
-            if [ ! -d /opt/cheese_project/venv ]; then python3 -m venv /opt/cheese_project/venv; fi && \
-            source /opt/cheese_project/venv/bin/activate && \
+            if [ ! -d /opt/cheese/Cheese_Project/venv ]; then python3 -m venv /opt/cheese/Cheese_Project/venv; fi && \
+            source /opt/cheese/Cheese_Project/venv/bin/activate && \
             pip install -r requirements.txt && \
             python manage.py check --settings=config.settings.production && \
             python manage.py migrate --settings=config.settings.production && \
