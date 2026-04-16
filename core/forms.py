@@ -4,6 +4,7 @@ from django import forms
 from .models import (
     PurchaseInvoice,
     PurchaseInvoiceItem,
+    PurchasePayment,
     SalesInvoice,
     SalesInvoiceItem,
     SalesPayment,
@@ -83,7 +84,48 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
             raise forms.ValidationError("La cantidad de canastas no puede ser negativa.")
         return baskets
 
-
+class PurchasePaymentForm(forms.ModelForm):
+    class Meta:
+        model = PurchasePayment
+        fields = ["payment_date", "amount", "notes"]
+        widgets = {
+            "payment_date": forms.DateInput(attrs={
+                "type": "date",
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2",
+            }),
+            "amount": forms.NumberInput(attrs={
+                "step": "0.01",
+                "min": "0.01",
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2",
+            }),
+            "notes": forms.Textarea(attrs={
+                "rows": 3,
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2",
+            }),
+        }
+ 
+    def __init__(self, *args, invoice=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._invoice = invoice
+ 
+    def clean_amount(self):
+        amount = self.cleaned_data.get("amount")
+        if amount is None or amount <= 0:
+            raise forms.ValidationError("El valor del pago debe ser mayor que cero.")
+        if self._invoice:
+            from django.db.models import Sum as _Sum
+            current_paid = (
+                self._invoice.payments.exclude(pk=self.instance.pk)
+                .aggregate(total=_Sum("amount"))
+                .get("total") or Decimal("0.00")
+            )
+            remaining = self._invoice.total_amount - current_paid
+            if amount > remaining:
+                raise forms.ValidationError(
+                    f"El pago no puede superar el saldo pendiente (${remaining:,.0f})."
+                )
+        return amount
+ 
 # ─────────────────────────────────────────
 # VENTAS
 # ─────────────────────────────────────────

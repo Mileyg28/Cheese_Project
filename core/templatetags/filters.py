@@ -6,17 +6,21 @@ register = template.Library()
 
 @register.filter
 def pesos(value):
-    """Formatea un valor numérico como pesos colombianos. Ej: 1234567.89 → $ 1.234.567,89"""
+    """Formatea un valor numérico como pesos colombianos.
+    Muestra decimales solo si son distintos de cero.
+    Ej: 1234567    → $ 1.234.567
+        1234567.50 → $ 1.234.567,50
+    """
     try:
         value = float(value)
     except (TypeError, ValueError):
-        return "$ 0,00"
+        return "$ 0"
 
-    # Separar parte entera y decimal
     entero = int(value)
-    decimales = round((value - entero) * 100)
+    centavos = round((value - entero) * 100)
 
-    # Formatear parte entera con puntos como separador de miles
     entero_formateado = f"{entero:,}".replace(",", ".")
 
-    return f"$ {entero_formateado},{decimales:02d}"
+    if centavos:
+        return f"$ {entero_formateado},{centavos:02d}"
+    return f"$ {entero_formateado}"

@@ -6,12 +6,14 @@ from django.core.exceptions import PermissionDenied
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.db import transaction
+from django.core.paginator import Paginator
 from django.db.models import Sum, Q
 from decimal import Decimal
 
 from .forms import (
     PurchaseInvoiceForm,
     PurchaseInvoiceItemForm,
+    PurchasePaymentForm,
     SalesInvoiceForm,
     SalesInvoiceItemForm,
     SalesInvoiceItemFormSet,
@@ -33,71 +35,74 @@ def is_operator_or_admin(user):
 
 
 # ── Home ───────────────────────────────────────────────────────────────────────
-
+PAGE_SIZE = 30
+ 
 @login_required
 def home(request):
     is_admin = is_administrator(request.user)
-
-    # ── Filtros de ventas (prefijo v_) ────────────────────────────
-    v_estado   = request.GET.get("v_estado", "").strip()
-    v_fecha_desde = request.GET.get("v_fecha_desde", "").strip()
-    v_fecha_hasta = request.GET.get("v_fecha_hasta", "").strip()
-
-    sales_invoices = SalesInvoice.objects.select_related("customer").order_by("-invoice_date", "-id")
-
-    if v_estado:
-        sales_invoices = sales_invoices.filter(status=v_estado)
-    if v_fecha_desde:
-        sales_invoices = sales_invoices.filter(invoice_date__gte=v_fecha_desde)
-    if v_fecha_hasta:
-        sales_invoices = sales_invoices.filter(invoice_date__lte=v_fecha_hasta)
-
-    # Determinar tab activo: si se envió algún filtro de compras, activar compras; si no, ventas
+ 
     active_tab = request.GET.get("tab", "compras" if is_admin else "ventas")
-
+ 
+    # ── Filtros y paginación de ventas ────────────────────────────────────────
+    v_estado      = request.GET.get("v_estado", "")
+    v_fecha_desde = request.GET.get("v_fecha_desde", "")
+    v_fecha_hasta = request.GET.get("v_fecha_hasta", "")
+    v_page        = request.GET.get("v_page", 1)
+ 
+    sales_qs = SalesInvoice.objects.select_related("customer").order_by("-invoice_date", "-id")
+    if v_estado:
+        sales_qs = sales_qs.filter(status=v_estado)
+    if v_fecha_desde:
+        sales_qs = sales_qs.filter(invoice_date__gte=v_fecha_desde)
+    if v_fecha_hasta:
+        sales_qs = sales_qs.filter(invoice_date__lte=v_fecha_hasta)
+ 
+    v_paginator   = Paginator(sales_qs, PAGE_SIZE)
+    sales_invoices = v_paginator.get_page(v_page)
+ 
     context = {
         "is_admin": is_admin,
         "active_tab": active_tab,
         "sales_invoices": sales_invoices,
-        "total_sales_invoices": sales_invoices.count(),
-        # Valores actuales de filtros de ventas (para repoblar los inputs)
+        "total_sales_invoices": SalesInvoice.objects.count(),
         "v_estado": v_estado,
         "v_fecha_desde": v_fecha_desde,
         "v_fecha_hasta": v_fecha_hasta,
     }
-
+ 
     if is_admin:
-        # ── Filtros de compras (prefijo c_) ───────────────────────
-        c_estado      = request.GET.get("c_estado", "").strip()
-        c_fecha_desde = request.GET.get("c_fecha_desde", "").strip()
-        c_fecha_hasta = request.GET.get("c_fecha_hasta", "").strip()
-
-        purchase_invoices = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
-
+        # ── Filtros y paginación de compras ────────────────────────────────────
+        c_estado      = request.GET.get("c_estado", "")
+        c_fecha_desde = request.GET.get("c_fecha_desde", "")
+        c_fecha_hasta = request.GET.get("c_fecha_hasta", "")
+        c_page        = request.GET.get("c_page", 1)
+ 
+        purchase_qs = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
         if c_estado:
-            purchase_invoices = purchase_invoices.filter(status=c_estado)
+            purchase_qs = purchase_qs.filter(status=c_estado)
         if c_fecha_desde:
-            purchase_invoices = purchase_invoices.filter(invoice_date__gte=c_fecha_desde)
+            purchase_qs = purchase_qs.filter(invoice_date__gte=c_fecha_desde)
         if c_fecha_hasta:
-            purchase_invoices = purchase_invoices.filter(invoice_date__lte=c_fecha_hasta)
-
-        # Totales sobre el queryset SIN filtros para las tarjetas de resumen
+            purchase_qs = purchase_qs.filter(invoice_date__lte=c_fecha_hasta)
+ 
+        c_paginator      = Paginator(purchase_qs, PAGE_SIZE)
+        purchase_invoices = c_paginator.get_page(c_page)
+ 
         all_purchases = PurchaseInvoice.objects.all()
         all_sales     = SalesInvoice.objects.all()
-
+ 
         context.update({
             "purchase_invoices": purchase_invoices,
-            "total_purchase_invoices": purchase_invoices.count(),
+            "total_purchase_invoices": all_purchases.count(),
             "total_purchased": all_purchases.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
-            "total_sold":      all_sales.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
-            # Valores actuales de filtros de compras
+            "total_sold":      all_sales.aggregate(total=Sum("total_amount")).get("total")     or Decimal("0.00"),
             "c_estado": c_estado,
             "c_fecha_desde": c_fecha_desde,
             "c_fecha_hasta": c_fecha_hasta,
         })
-
+ 
     return render(request, "core/purchases/home.html", context)
-
+ 
 
 # ── Purchases (administrator only) ────────────────────────────────────────────
 
@@ -177,6 +182,39 @@ def get_supplier_products(request):
 
     return JsonResponse({"products": products})
 
+@login_required
+def add_purchase_payment(request, pk):
+    if not is_administrator(request.user):
+        raise PermissionDenied
+ 
+    invoice = get_object_or_404(
+        PurchaseInvoice.objects.select_related("supplier"),
+        pk=pk,
+    )
+ 
+    if invoice.status == PurchaseInvoice.STATUS_PAID:
+        messages.error(request, "Esta factura ya está completamente pagada.")
+        return redirect("home")
+ 
+    if request.method == "POST":
+        form = PurchasePaymentForm(request.POST, invoice=invoice)
+        if form.is_valid():
+            payment = form.save(commit=False)
+            payment.invoice = invoice
+            payment.save()
+            messages.success(request, "Pago al proveedor registrado correctamente.")
+            return redirect("home")
+    else:
+        form = PurchasePaymentForm(invoice=invoice)
+ 
+    payments = invoice.payments.order_by("-payment_date", "-id")
+ 
+    context = {
+        "invoice": invoice,
+        "form": form,
+        "payments": payments,
+    }
+    return render(request, "core/purchases/add_purchase_payment.html", context)
 
 # ── Sales ──────────────────────────────────────────────────────────────────────
 
