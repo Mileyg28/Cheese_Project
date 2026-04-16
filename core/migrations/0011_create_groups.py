@@ -12,7 +12,7 @@ def delete_groups(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('core', '0010_mensajero'),  # ajusta al nombre de tu última migración
+        ('core', '0010_mensajero_salesinvoice_mensajero'),  # ajusta al nombre de tu última migración
     ]
 
     operations = [
