@@ -1,0 +1,487 @@
+{% extends "core/purchases/base.html" %}
+{% load static %}
+{% load filters %}
+
+{% block title %}Reporte — {{ period_label }}{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+
+<div class="bg-white rounded-2xl border border-slate-200 shadow-sm p-4">
+    <div class="flex flex-col lg:flex-row lg:items-center gap-4">
+
+        {# Título #}
+        <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-0.5">
+                <svg class="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 013 19.875v-6.75zM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V8.625zM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 01-1.125-1.125V4.125z"/>
+                </svg>
+                <h2 class="text-xl font-bold text-slate-900">Reporte de operaciones</h2>
+            </div>
+            <p class="text-sm text-slate-500 font-medium pl-7">{{ period_label }}</p>
+        </div>
+
+        {# Toggle semanal / mensual #}
+        <div class="flex items-center bg-slate-100 rounded-xl p-1 gap-1 self-start lg:self-auto">
+            <a href="?mode=weekly{% if mode == 'weekly' %}&year={{ year }}&week={{ week }}{% endif %}"
+               class="px-4 py-2 rounded-lg text-sm font-semibold transition
+                      {% if mode == 'weekly' %}bg-slate-900 text-white shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+                Semanal
+            </a>
+            <a href="?mode=monthly{% if mode == 'monthly' %}&year={{ year }}&month={{ month }}{% endif %}"
+               class="px-4 py-2 rounded-lg text-sm font-semibold transition
+                      {% if mode == 'monthly' %}bg-slate-900 text-white shadow-sm{% else %}text-slate-500 hover:text-slate-700{% endif %}">
+                Mensual
+            </a>
+        </div>
+
+        {# Navegación de período #}
+        <div class="flex items-center gap-2">
+
+            {# Flecha anterior #}
+            {% if mode == 'weekly' %}
+            <a href="?mode=weekly&year={{ prev_wyear }}&week={{ prev_week }}"
+               class="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition"
+               title="Semana anterior">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
+                </svg>
+            </a>
+            {% else %}
+            <a href="?mode=monthly&year={{ prev_myear }}&month={{ prev_month }}"
+               class="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition"
+               title="Mes anterior">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5"/>
+                </svg>
+            </a>
+            {% endif %}
+
+            {# Selector rápido #}
+            {% if mode == 'weekly' %}
+            <form method="get" class="flex items-center gap-2" id="week-form">
+                <input type="hidden" name="mode" value="weekly">
+                <select name="year" onchange="document.getElementById('week-form').submit()"
+                        class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <select name="week" onchange="document.getElementById('week-form').submit()"
+                        class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                    {% for w in available_weeks %}
+                    <option value="{{ w.num }}" {% if w.num == week %}selected{% endif %}>{{ w.label }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% else %}
+            <form method="get" class="flex items-center gap-2" id="month-form">
+                <input type="hidden" name="mode" value="monthly">
+                <select name="year" onchange="document.getElementById('month-form').submit()"
+                        class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                    {% for y in available_years %}
+                    <option value="{{ y }}" {% if y == year %}selected{% endif %}>{{ y }}</option>
+                    {% endfor %}
+                </select>
+                <select name="month" onchange="document.getElementById('month-form').submit()"
+                        class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400">
+                    {% for num, name in months %}
+                    <option value="{{ num }}" {% if num == month %}selected{% endif %}>{{ name }}</option>
+                    {% endfor %}
+                </select>
+            </form>
+            {% endif %}
+
+            {# Flecha siguiente #}
+            {% if mode == 'weekly' %}
+                {% if can_go_next %}
+                <a href="?mode=weekly&year={{ next_wyear }}&week={{ next_week }}"
+                   class="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition"
+                   title="Semana siguiente">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                    </svg>
+                </a>
+                {% else %}
+                <span class="w-9 h-9 flex items-center justify-center rounded-xl text-slate-300 cursor-not-allowed">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                    </svg>
+                </span>
+                {% endif %}
+            {% else %}
+                {% if can_go_next %}
+                <a href="?mode=monthly&year={{ next_myear }}&month={{ next_month }}"
+                   class="w-9 h-9 flex items-center justify-center rounded-xl border border-slate-200 text-slate-500 hover:bg-slate-50 hover:text-slate-800 transition"
+                   title="Mes siguiente">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                    </svg>
+                </a>
+                {% else %}
+                <span class="w-9 h-9 flex items-center justify-center rounded-xl text-slate-300 cursor-not-allowed">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+                    </svg>
+                </span>
+                {% endif %}
+            {% endif %}
+
+        </div>
+    </div>
+</div>
+
+
+<div class="grid grid-cols-2 xl:grid-cols-4 gap-4">
+
+    {# Comprado #}
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-1.5 6h11M10 19a1 1 0 1 1-2 0 1 1 0 0 1 2 0zm8 0a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                </svg>
+            </div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Comprado</p>
+        </div>
+        <p class="text-2xl font-extrabold text-slate-800">{{ total_purchased|pesos }}</p>
+        <p class="text-xs text-slate-400 mt-1">
+            {{ purchase_invoices|length }} factura{{ purchase_invoices|length|pluralize:"s" }}
+            {% if total_kilos_purchased > 0 %} · {{ total_kilos_purchased|floatformat:1 }} kg{% endif %}
+        </p>
+    </div>
+
+    {# Vendido #}
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/>
+                </svg>
+            </div>
+            <p class="text-xs font-bold uppercase tracking-widest text-slate-400">Vendido</p>
+        </div>
+        <p class="text-2xl font-extrabold text-slate-800">{{ total_sold|pesos }}</p>
+        <p class="text-xs text-slate-400 mt-1">{{ sales_invoices|length }} factura{{ sales_invoices|length|pluralize:"s" }}</p>
+    </div>
+
+    {# Cobrado #}
+    <div class="bg-emerald-50 rounded-2xl border border-emerald-200 shadow-sm px-5 py-4">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <p class="text-xs font-bold uppercase tracking-widest text-emerald-500">Cobrado</p>
+        </div>
+        <p class="text-2xl font-extrabold text-emerald-700">{{ total_collected|pesos }}</p>
+        {% if total_sold > 0 %}
+        <div class="mt-2">
+            <div class="w-full bg-emerald-100 rounded-full h-1.5">
+                <div class="bg-emerald-500 h-1.5 rounded-full transition-all"
+                     style="width: {% widthratio total_collected total_sold 100 %}%"></div>
+            </div>
+            <p class="text-xs text-emerald-600 mt-1">{% widthratio total_collected total_sold 100 %}% del total vendido</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Por cobrar #}
+    <div class="{% if total_pending > 0 %}bg-red-50 border-red-200{% else %}bg-slate-50 border-slate-200{% endif %} rounded-2xl border shadow-sm px-5 py-4">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 rounded-lg {% if total_pending > 0 %}bg-red-100{% else %}bg-slate-100{% endif %} flex items-center justify-center shrink-0">
+                <svg class="w-4 h-4 {% if total_pending > 0 %}text-red-500{% else %}text-slate-300{% endif %}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+            </div>
+            <p class="text-xs font-bold uppercase tracking-widest {% if total_pending > 0 %}text-red-400{% else %}text-slate-400{% endif %}">Por cobrar</p>
+        </div>
+        {% if total_pending > 0 %}
+        <p class="text-2xl font-extrabold text-red-600">{{ total_pending|pesos }}</p>
+        <p class="text-xs text-red-400 mt-1">Saldo pendiente en facturas</p>
+        {% else %}
+        <p class="text-2xl font-extrabold text-slate-300">—</p>
+        <p class="text-xs text-slate-400 mt-1">Sin saldos pendientes</p>
+        {% endif %}
+    </div>
+
+</div>
+
+
+
+
+<div class="bg-slate-900 rounded-2xl shadow-sm p-5 text-white">
+    <p class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-4">Balance del período · {{ period_label }}</p>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <div class="bg-slate-800 rounded-xl px-4 py-3">
+            <p class="text-xs uppercase tracking-wide text-slate-400">Total vendido</p>
+            <p class="text-lg font-bold mt-1">{{ total_sold|pesos }}</p>
+        </div>
+        <div class="bg-slate-800 rounded-xl px-4 py-3">
+            <p class="text-xs uppercase tracking-wide text-slate-400">Total comprado</p>
+            <p class="text-lg font-bold mt-1">{{ total_purchased|pesos }}</p>
+        </div>
+        <div class="{% if gross_margin >= 0 %}bg-emerald-700{% else %}bg-red-700{% endif %} rounded-xl px-4 py-3">
+            <p class="text-xs uppercase tracking-wide {% if gross_margin >= 0 %}text-emerald-200{% else %}text-red-200{% endif %}">Margen bruto</p>
+            <p class="text-xl font-extrabold mt-1">{{ gross_margin|pesos }}</p>
+        </div>
+    </div>
+</div>
+
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+
+    {# Compras por proveedor #}
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-bold text-slate-800">Compras por proveedor</h3>
+                <p class="text-xs text-slate-400 mt-0.5">{{ period_label }}</p>
+            </div>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-700">
+                {{ purchase_invoices|length }} fact.
+            </span>
+        </div>
+
+        {% if purchases_by_supplier %}
+        <div class="divide-y divide-slate-50">
+            {% for row in purchases_by_supplier %}
+            <div class="px-5 py-3.5 hover:bg-slate-50 transition">
+                <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-slate-800 truncate">{{ row.supplier__name }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5">
+                            {{ row.num_invoices }} fact.
+                            {% if row.kilos %} · {{ row.kilos|floatformat:1 }} kg{% endif %}
+                            {% if row.freight %} · Flete: {{ row.freight|pesos }}{% endif %}
+                        </p>
+                    </div>
+                    <span class="text-sm font-bold text-slate-800 shrink-0">{{ row.total|pesos }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
+            <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total</span>
+            <span class="text-sm font-extrabold text-slate-800">{{ total_purchased|pesos }}</span>
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-10 text-slate-400">
+            <svg class="w-8 h-8 text-slate-200 mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 10.5V6a3.75 3.75 0 10-7.5 0v4.5m11.356-1.993l1.263 12c.07.665-.45 1.243-1.119 1.243H4.25a1.125 1.125 0 01-1.12-1.243l1.264-12A1.125 1.125 0 015.513 7.5h12.974c.576 0 1.059.435 1.119 1.007z"/>
+            </svg>
+            <p class="text-sm font-medium">Sin compras en este período</p>
+        </div>
+        {% endif %}
+    </div>
+
+    {# Ventas por cliente #}
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+                <h3 class="text-sm font-bold text-slate-800">Ventas por cliente</h3>
+                <p class="text-xs text-slate-400 mt-0.5">{{ period_label }}</p>
+            </div>
+            <span class="text-xs font-semibold px-2.5 py-1 rounded-full bg-blue-100 text-blue-700">
+                {{ sales_invoices|length }} fact.
+            </span>
+        </div>
+
+        {% if sales_by_customer %}
+        <div class="divide-y divide-slate-50">
+            {% for row in sales_by_customer %}
+            <div class="px-5 py-3.5 hover:bg-slate-50 transition">
+                <div class="flex items-start justify-between gap-2 mb-2">
+                    <div class="min-w-0">
+                        <p class="text-sm font-semibold text-slate-800 truncate">{{ row.customer__name }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5">{{ row.num_invoices }} factura{{ row.num_invoices|pluralize:"s" }}</p>
+                    </div>
+                    <span class="text-sm font-bold text-slate-800 shrink-0">{{ row.total|pesos }}</span>
+                </div>
+                <div class="flex items-center justify-between text-xs mb-1.5">
+                    <span class="text-emerald-600 font-semibold">✓ {{ row.paid|pesos }}</span>
+                    {% if row.pending > 0 %}
+                    <span class="text-red-500 font-semibold">⏳ {{ row.pending|pesos }}</span>
+                    {% else %}
+                    <span class="text-slate-300 font-medium">Saldado</span>
+                    {% endif %}
+                </div>
+                {% if row.total > 0 %}
+                <div class="w-full bg-slate-100 rounded-full h-1.5">
+                    <div class="bg-emerald-500 h-1.5 rounded-full"
+                         style="width: {% widthratio row.paid row.total 100 %}%"></div>
+                </div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 space-y-1">
+            <div class="flex justify-between items-center">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wide">Total vendido</span>
+                <span class="text-sm font-extrabold text-slate-800">{{ total_sold|pesos }}</span>
+            </div>
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-emerald-600 font-medium">Cobrado</span>
+                <span class="text-xs font-bold text-emerald-700">{{ total_collected|pesos }}</span>
+            </div>
+            {% if total_pending > 0 %}
+            <div class="flex justify-between items-center">
+                <span class="text-xs text-red-500 font-medium">Por cobrar</span>
+                <span class="text-xs font-bold text-red-600">{{ total_pending|pesos }}</span>
+            </div>
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-10 text-slate-400">
+            <svg class="w-8 h-8 text-slate-200 mb-2" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75"/>
+            </svg>
+            <p class="text-sm font-medium">Sin ventas en este período</p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+
+
+{% if sales_invoices %}
+<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div>
+            <h3 class="text-sm font-bold text-slate-800">Facturas de venta</h3>
+            <p class="text-xs text-slate-400 mt-0.5">{{ period_label }}</p>
+        </div>
+        <div class="flex items-center gap-3 text-xs">
+            <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 inline-block"></span>
+                <span class="text-slate-500">Pagada</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-amber-400 inline-block"></span>
+                <span class="text-slate-500">Abonada</span>
+            </span>
+            <span class="flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-slate-300 inline-block"></span>
+                <span class="text-slate-500">Pendiente</span>
+            </span>
+        </div>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead>
+                <tr class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50">
+                    <th class="px-4 py-3 text-left">Nº</th>
+                    <th class="px-4 py-3 text-left">Fecha</th>
+                    <th class="px-4 py-3 text-left">Cliente</th>
+                    <th class="px-4 py-3 text-right">Total</th>
+                    <th class="px-4 py-3 text-right">Cobrado</th>
+                    <th class="px-4 py-3 text-right">Pendiente</th>
+                    <th class="px-4 py-3 text-center">Estado</th>
+                    <th class="px-4 py-3 text-center">Acción</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50">
+                {% for inv in sales_invoices %}
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="px-4 py-3 font-mono font-bold text-slate-600 text-xs">{{ inv.invoice_number }}</td>
+                    <td class="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{{ inv.invoice_date }}</td>
+                    <td class="px-4 py-3 font-medium text-slate-800">{{ inv.customer.name }}</td>
+                    <td class="px-4 py-3 text-right font-semibold text-slate-800">{{ inv.total_amount|pesos }}</td>
+                    <td class="px-4 py-3 text-right text-emerald-600 font-semibold">{{ inv.amount_paid|pesos }}</td>
+                    <td class="px-4 py-3 text-right">
+                        {% if inv.balance_due > 0 %}
+                            <span class="text-red-600 font-bold">{{ inv.balance_due|pesos }}</span>
+                        {% else %}
+                            <span class="text-slate-300">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        {% if inv.status == 'paid' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Pagada</span>
+                        {% elif inv.status == 'partial' %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700">Abonada</span>
+                        {% else %}
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Pendiente</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-4 py-3 text-center">
+                        <div class="flex items-center justify-center gap-2">
+                            <a href="{% url 'sales_invoice_detail' inv.pk %}"
+                               class="text-xs text-blue-600 hover:text-blue-800 font-semibold hover:underline underline-offset-2">Ver</a>
+                            {% if inv.status != 'paid' %}
+                            <span class="text-slate-200">|</span>
+                            <a href="{% url 'add_sales_payment' inv.pk %}"
+                               class="text-xs text-emerald-600 hover:text-emerald-800 font-semibold hover:underline underline-offset-2">Pagar</a>
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="bg-slate-50 border-t-2 border-slate-200">
+                <tr>
+                    <td colspan="3" class="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Totales del período</td>
+                    <td class="px-4 py-3 text-right font-extrabold text-slate-800">{{ total_sold|pesos }}</td>
+                    <td class="px-4 py-3 text-right font-extrabold text-emerald-700">{{ total_collected|pesos }}</td>
+                    <td class="px-4 py-3 text-right font-extrabold {% if total_pending > 0 %}text-red-600{% else %}text-slate-300{% endif %}">
+                        {% if total_pending > 0 %}{{ total_pending|pesos }}{% else %}—{% endif %}
+                    </td>
+                    <td colspan="2"></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+
+{% if purchase_invoices %}
+<div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+    <div class="px-5 py-4 border-b border-slate-100">
+        <h3 class="text-sm font-bold text-slate-800">Facturas de compra</h3>
+        <p class="text-xs text-slate-400 mt-0.5">{{ period_label }}</p>
+    </div>
+    <div class="overflow-x-auto">
+        <table class="min-w-full text-sm">
+            <thead>
+                <tr class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50">
+                    <th class="px-4 py-3 text-left">Nº</th>
+                    <th class="px-4 py-3 text-left">Fecha</th>
+                    <th class="px-4 py-3 text-left">Proveedor</th>
+                    <th class="px-4 py-3 text-right">Kilos</th>
+                    <th class="px-4 py-3 text-right">Subtotal</th>
+                    <th class="px-4 py-3 text-right">Flete</th>
+                    <th class="px-4 py-3 text-right">Total</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50">
+                {% for inv in purchase_invoices %}
+                <tr class="hover:bg-slate-50 transition">
+                    <td class="px-4 py-3 font-mono font-bold text-slate-600 text-xs">{{ inv.invoice_number }}</td>
+                    <td class="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">{{ inv.invoice_date }}</td>
+                    <td class="px-4 py-3 font-medium text-slate-800">{{ inv.supplier.name }}</td>
+                    <td class="px-4 py-3 text-right text-slate-600">{{ inv.total_kilos|floatformat:1 }} kg</td>
+                    <td class="px-4 py-3 text-right text-slate-600">{{ inv.subtotal|pesos }}</td>
+                    <td class="px-4 py-3 text-right text-slate-400">{{ inv.freight_cost|pesos }}</td>
+                    <td class="px-4 py-3 text-right font-semibold text-slate-800">{{ inv.total_amount|pesos }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot class="bg-slate-50 border-t-2 border-slate-200">
+                <tr>
+                    <td colspan="3" class="px-4 py-3 text-xs font-bold text-slate-500 uppercase tracking-wide">Totales del período</td>
+                    <td class="px-4 py-3 text-right font-bold text-slate-600">{{ total_kilos_purchased|floatformat:1 }} kg</td>
+                    <td class="px-4 py-3 text-right font-bold text-slate-500">—</td>
+                    <td class="px-4 py-3 text-right font-bold text-slate-500">{{ total_freight|pesos }}</td>
+                    <td class="px-4 py-3 text-right font-extrabold text-slate-800">{{ total_purchased|pesos }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+</div>
+{% endblock %}

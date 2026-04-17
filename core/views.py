@@ -1,3 +1,4 @@
+from datetime import timezone
 import json
 
 from django.contrib import messages
@@ -9,6 +10,7 @@ from django.db import transaction
 from django.core.paginator import Paginator
 from django.db.models import Sum, Q
 from decimal import Decimal
+from django.utils import timezone
 
 from .forms import (
     PurchaseInvoiceForm,
@@ -189,6 +191,8 @@ def get_supplier_products(request):
             "name": sp.product.name,
             "price_per_kilo": str(sp.default_purchase_price),
             "kilos_per_basket": str(sp.kilos_per_basket or "0.00"),
+            "purchase_pricing_type": sp.product.purchase_pricing_type,
+            "requires_weight": sp.product.requires_weight,
         }
         for sp in supplier_products
     ]
@@ -352,3 +356,307 @@ def add_sales_payment(request, pk):
         "form": form,
     }
     return render(request, "core/purchases/add_sales_payment.html", context)
+# ── reportes----------------
+
+@login_required
+def period_report(request):
+    if not is_administrator(request.user):
+        raise PermissionDenied
+
+    import datetime
+    from django.db.models import Count
+
+    today = timezone.localdate()
+
+    # ── Modo: semanal o mensual ───────────────────────────────────────────────
+    mode = request.GET.get("mode", "weekly")  # "weekly" | "monthly"
+
+    MONTHS_ES = {
+        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
+        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
+        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
+    }
+
+    # ── Rango de años disponibles ─────────────────────────────────────────────
+    first_purchase = PurchaseInvoice.objects.order_by("invoice_date").first()
+    first_sale     = SalesInvoice.objects.order_by("invoice_date").first()
+    start_year = today.year
+    if first_purchase:
+        start_year = min(start_year, first_purchase.invoice_date.year)
+    if first_sale:
+        start_year = min(start_year, first_sale.invoice_date.year)
+    available_years = list(range(start_year, today.year + 1))
+
+    # ════════════════════════════════════════════════════════════════════════
+    # MODO SEMANAL
+    # ════════════════════════════════════════════════════════════════════════
+    if mode == "weekly":
+        iso = today.isocalendar()  # (year, week, weekday)
+
+        try:
+            year = int(request.GET.get("year", iso[0]))
+        except (ValueError, TypeError):
+            year = iso[0]
+
+        try:
+            week = int(request.GET.get("week", iso[1]))
+        except (ValueError, TypeError):
+            week = iso[1]
+
+        # Clamp week to valid range for that year
+        max_week = datetime.date(year, 12, 28).isocalendar()[1]
+        week = max(1, min(week, max_week))
+
+        # Lunes y domingo de la semana seleccionada
+        week_start = datetime.date.fromisocalendar(year, week, 1)   # lunes
+        week_end   = datetime.date.fromisocalendar(year, week, 7)   # domingo
+
+        # Semana anterior y siguiente para navegación
+        prev_date  = week_start - datetime.timedelta(days=1)
+        next_date  = week_end   + datetime.timedelta(days=1)
+        prev_week  = prev_date.isocalendar()[1]
+        prev_wyear = prev_date.isocalendar()[0]
+        next_week  = next_date.isocalendar()[1]
+        next_wyear = next_date.isocalendar()[0]
+
+        # ── Compras de la semana ──────────────────────────────────────────
+        purchase_invoices = PurchaseInvoice.objects.filter(
+            invoice_date__gte=week_start,
+            invoice_date__lte=week_end,
+        ).select_related("supplier").order_by("invoice_date", "id")
+
+        ptotals = purchase_invoices.aggregate(
+            total_amount=Sum("total_amount"),
+            total_kilos=Sum("total_kilos"),
+            total_freight=Sum("freight_cost"),
+        )
+        total_purchased        = ptotals.get("total_amount")  or Decimal("0.00")
+        total_kilos_purchased  = ptotals.get("total_kilos")   or Decimal("0.00")
+        total_freight          = ptotals.get("total_freight") or Decimal("0.00")
+
+        purchases_by_supplier = (
+            purchase_invoices
+            .values("supplier__name")
+            .annotate(
+                subtotal=Sum("subtotal"),
+                freight=Sum("freight_cost"),
+                total=Sum("total_amount"),
+                kilos=Sum("total_kilos"),
+                num_invoices=Count("id"),
+            )
+            .order_by("-total")
+        )
+
+        # ── Ventas de la semana ───────────────────────────────────────────
+        sales_invoices = SalesInvoice.objects.filter(
+            invoice_date__gte=week_start,
+            invoice_date__lte=week_end,
+        ).select_related("customer").order_by("invoice_date", "id")
+
+        stotals = sales_invoices.aggregate(
+            total_amount=Sum("total_amount"),
+            total_paid=Sum("amount_paid"),
+            total_pending=Sum("balance_due"),
+        )
+        total_sold      = stotals.get("total_amount")  or Decimal("0.00")
+        total_collected = stotals.get("total_paid")    or Decimal("0.00")
+        total_pending   = stotals.get("total_pending") or Decimal("0.00")
+
+        sales_by_customer = (
+            sales_invoices
+            .values("customer__name")
+            .annotate(
+                total=Sum("total_amount"),
+                paid=Sum("amount_paid"),
+                pending=Sum("balance_due"),
+                num_invoices=Count("id"),
+            )
+            .order_by("-total")
+        )
+
+        # Pagos recibidos durante la semana (por fecha de pago)
+        from .models import SalesPayment
+        payments_in_period = SalesPayment.objects.filter(
+            payment_date__gte=week_start,
+            payment_date__lte=week_end,
+        ).aggregate(total=Sum("amount"))
+        total_payments_received = payments_in_period.get("total") or Decimal("0.00")
+
+        # Etiqueta del período
+        period_label = (
+            f"Semana {week} · "
+            f"{week_start.strftime('%d/%m')} – {week_end.strftime('%d/%m/%Y')}"
+        )
+
+        # Semanas disponibles del año seleccionado (para el selector)
+        max_week_selected = datetime.date(year, 12, 28).isocalendar()[1]
+        available_weeks = []
+        for w in range(1, max_week_selected + 1):
+            ws = datetime.date.fromisocalendar(year, w, 1)
+            we = datetime.date.fromisocalendar(year, w, 7)
+            available_weeks.append({
+                "num": w,
+                "label": f"Sem. {w}  ({ws.strftime('%d/%m')} – {we.strftime('%d/%m')})",
+            })
+
+        context = {
+            "mode": "weekly",
+            "year": year,
+            "week": week,
+            "week_start": week_start,
+            "week_end": week_end,
+            "period_label": period_label,
+            "available_years": available_years,
+            "available_weeks": available_weeks,
+            "prev_week": prev_week,
+            "prev_wyear": prev_wyear,
+            "next_week": next_week,
+            "next_wyear": next_wyear,
+            "can_go_next": next_date <= today,
+            # Compras
+            "purchase_invoices": purchase_invoices,
+            "purchases_by_supplier": purchases_by_supplier,
+            "total_purchased": total_purchased,
+            "total_kilos_purchased": total_kilos_purchased,
+            "total_freight": total_freight,
+            # Ventas
+            "sales_invoices": sales_invoices,
+            "sales_by_customer": sales_by_customer,
+            "total_sold": total_sold,
+            "total_collected": total_collected,
+            "total_pending": total_pending,
+            "total_payments_received": total_payments_received,
+            # Balance
+            "gross_margin": total_sold - total_purchased,
+            # Compartidos
+            "months": [(k, v) for k, v in MONTHS_ES.items()],
+        }
+
+    # ════════════════════════════════════════════════════════════════════════
+    # MODO MENSUAL
+    # ════════════════════════════════════════════════════════════════════════
+    else:
+        try:
+            year = int(request.GET.get("year", today.year))
+        except (ValueError, TypeError):
+            year = today.year
+
+        try:
+            month = int(request.GET.get("month", today.month))
+            if not 1 <= month <= 12:
+                month = today.month
+        except (ValueError, TypeError):
+            month = today.month
+
+        # Mes anterior / siguiente
+        if month == 1:
+            prev_month, prev_myear = 12, year - 1
+        else:
+            prev_month, prev_myear = month - 1, year
+
+        if month == 12:
+            next_month, next_myear = 1, year + 1
+        else:
+            next_month, next_myear = month + 1, year
+
+        can_go_next = (next_myear < today.year) or (
+            next_myear == today.year and next_month <= today.month
+        )
+
+        # ── Compras del mes ───────────────────────────────────────────────
+        purchase_invoices = PurchaseInvoice.objects.filter(
+            invoice_date__year=year,
+            invoice_date__month=month,
+        ).select_related("supplier").order_by("invoice_date", "id")
+
+        ptotals = purchase_invoices.aggregate(
+            total_amount=Sum("total_amount"),
+            total_kilos=Sum("total_kilos"),
+            total_freight=Sum("freight_cost"),
+        )
+        total_purchased       = ptotals.get("total_amount")  or Decimal("0.00")
+        total_kilos_purchased = ptotals.get("total_kilos")   or Decimal("0.00")
+        total_freight         = ptotals.get("total_freight") or Decimal("0.00")
+
+        purchases_by_supplier = (
+            purchase_invoices
+            .values("supplier__name")
+            .annotate(
+                subtotal=Sum("subtotal"),
+                freight=Sum("freight_cost"),
+                total=Sum("total_amount"),
+                kilos=Sum("total_kilos"),
+                num_invoices=Count("id"),
+            )
+            .order_by("-total")
+        )
+
+        # ── Ventas del mes ────────────────────────────────────────────────
+        sales_invoices = SalesInvoice.objects.filter(
+            invoice_date__year=year,
+            invoice_date__month=month,
+        ).select_related("customer").order_by("invoice_date", "id")
+
+        stotals = sales_invoices.aggregate(
+            total_amount=Sum("total_amount"),
+            total_paid=Sum("amount_paid"),
+            total_pending=Sum("balance_due"),
+        )
+        total_sold      = stotals.get("total_amount")  or Decimal("0.00")
+        total_collected = stotals.get("total_paid")    or Decimal("0.00")
+        total_pending   = stotals.get("total_pending") or Decimal("0.00")
+
+        sales_by_customer = (
+            sales_invoices
+            .values("customer__name")
+            .annotate(
+                total=Sum("total_amount"),
+                paid=Sum("amount_paid"),
+                pending=Sum("balance_due"),
+                num_invoices=Count("id"),
+            )
+            .order_by("-total")
+        )
+
+        from .models import SalesPayment
+        payments_in_period = SalesPayment.objects.filter(
+            payment_date__year=year,
+            payment_date__month=month,
+        ).aggregate(total=Sum("amount"))
+        total_payments_received = payments_in_period.get("total") or Decimal("0.00")
+
+        month_name   = MONTHS_ES[month]
+        period_label = f"{month_name} {year}"
+
+        context = {
+            "mode": "monthly",
+            "year": year,
+            "month": month,
+            "month_name": month_name,
+            "period_label": period_label,
+            "available_years": available_years,
+            "prev_month": prev_month,
+            "prev_myear": prev_myear,
+            "next_month": next_month,
+            "next_myear": next_myear,
+            "can_go_next": can_go_next,
+            # Compras
+            "purchase_invoices": purchase_invoices,
+            "purchases_by_supplier": purchases_by_supplier,
+            "total_purchased": total_purchased,
+            "total_kilos_purchased": total_kilos_purchased,
+            "total_freight": total_freight,
+            # Ventas
+            "sales_invoices": sales_invoices,
+            "sales_by_customer": sales_by_customer,
+            "total_sold": total_sold,
+            "total_collected": total_collected,
+            "total_pending": total_pending,
+            "total_payments_received": total_payments_received,
+            # Balance
+            "gross_margin": total_sold - total_purchased,
+            # Compartidos
+            "months": [(k, v) for k, v in MONTHS_ES.items()],
+        }
+
+    return render(request, "core/purchases/period_report.html", context)

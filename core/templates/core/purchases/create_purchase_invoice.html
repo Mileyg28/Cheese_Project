@@ -96,8 +96,8 @@
                     {% endif %}
                 </div>
 
-                <div>
-                    <label for="{{ item_form.basket_quantity.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1">
+                <div id="field-basket-quantity">
+                    <label id="label-basket-quantity" for="{{ item_form.basket_quantity.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1">
                         Total de canastas
                     </label>
                     {{ item_form.basket_quantity }}
@@ -106,7 +106,7 @@
                     {% endif %}
                 </div>
 
-                <div>
+                <div id="field-weight-kg">
                     <label for="{{ item_form.weight_kg.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1">
                         Kilos totales
                     </label>
@@ -134,7 +134,7 @@
 
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="bg-slate-800 rounded-xl px-4 py-3">
-                    <p class="text-xs uppercase tracking-wide text-slate-400">Valor por kilo</p>
+                    <p id="label-price-per-unit" class="text-xs uppercase tracking-wide text-slate-400">Valor por kilo</p>
                     <p id="price_per_kilo" class="text-lg font-bold mt-1">$ 0.00</p>
                 </div>
 

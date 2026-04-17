@@ -20,4 +20,5 @@ urlpatterns = [
     views.add_sales_payment,
     name="add_sales_payment",),
     path("", views.home, name="home"),
+    path("reporte/", views.period_report, name="period_report"),
 ]

@@ -94,6 +94,7 @@ document.addEventListener("DOMContentLoaded", function () {
     function validateForm() {
         clearAllErrors();
         let valid = true;
+        const errors = [];
 
         // Validar cabecera de la factura
         const invoiceNumber = document.querySelector("[name=invoice_number]");
@@ -102,14 +103,17 @@ document.addEventListener("DOMContentLoaded", function () {
 
         if (!invoiceNumber?.value.trim()) {
             setFieldError(invoiceNumber.closest("div"), "El número de factura es obligatorio.");
+            errors.push("N° de factura");
             valid = false;
         }
         if (!customer?.value) {
             setFieldError(customer.closest("div"), "Debes seleccionar un cliente.");
+            errors.push("Cliente");
             valid = false;
         }
         if (!invoiceDate?.value) {
             setFieldError(invoiceDate.closest("div"), "La fecha es obligatoria.");
+            errors.push('Fecha');
             valid = false;
         }
 
@@ -298,10 +302,21 @@ document.addEventListener("DOMContentLoaded", function () {
         if (productInfo.requires_blocks) {
             blocksWrapper?.classList.remove("hidden");
             if (productInfo.requires_weight && productInfo.kg_per_block) {
+                // Se calcula solo: mantener readonly
+                if (blocksInput) {
+                    blocksInput.readOnly = true;
+                    blocksInput.classList.add("bg-slate-100", "cursor-not-allowed", "text-slate-500");
+                }
                 const label = blocksWrapper?.querySelector("label");
                 if (label && !label.dataset.originalText) {
                     label.dataset.originalText = label.textContent;
                     label.textContent = `Bloques (≈ ${productInfo.kg_per_block} kg c/u)`;
+                }
+            } else {
+                // Se ingresa manual: permitir edición
+                if (blocksInput) {
+                    blocksInput.readOnly = false;
+                    blocksInput.classList.remove("bg-slate-100", "cursor-not-allowed", "text-slate-500");
                 }
             }
         } else {
@@ -358,6 +373,12 @@ document.addEventListener("DOMContentLoaded", function () {
         // Solo números enteros en bloques y peso
         enforceNumbersOnly(weightInput, true);
         enforceNumbersOnly(blocksInput, false);
+
+        // Bloques: readonly si se calcula automáticamente desde el peso
+        if (blocksInput) {
+            blocksInput.readOnly = true;
+            blocksInput.classList.add("bg-slate-100", "cursor-not-allowed", "text-slate-500");
+        }
 
         if (productSelect) {
             applyProductFields(row, PRICING[productSelect.value] || null);

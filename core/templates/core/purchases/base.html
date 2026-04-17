@@ -42,6 +42,17 @@
                     {# Ventas: administrador y operario #}
                     <a href="{% url 'create_sales_invoice' %}" class="hover:text-emerald-300 transition">Nueva venta</a>
 
+                    {# Reportes: solo administrador #}
+                    {% if request.user.is_superuser %}
+                        <a href="{% url 'period_report' %}" class="hover:text-emerald-300 transition">Reportes</a>
+                    {% else %}
+                        {% for group in request.user.groups.all %}
+                            {% if group.name == 'administrator' %}
+                                <a href="{% url 'period_report' %}" class="hover:text-emerald-300 transition">Reportes</a>
+                            {% endif %}
+                        {% endfor %}
+                    {% endif %}
+
                     {# Admin Django: solo superusuario #}
                     {% if request.user.is_superuser %}
                         <a href="/admin/" class="hover:text-emerald-300 transition">Admin</a>
