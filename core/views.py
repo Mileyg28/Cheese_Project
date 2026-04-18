@@ -39,70 +39,71 @@ def is_operator_or_admin(user):
 # ── Home ───────────────────────────────────────────────────────────────────────
 PAGE_SIZE = 30
  
+
 @login_required
 def home(request):
+    from collections import defaultdict
+
     is_admin = is_administrator(request.user)
- 
-    active_tab = request.GET.get("tab", "compras" if is_admin else "ventas")
- 
-    # ── Filtros y paginación de ventas ────────────────────────────────────────
-    v_estado      = request.GET.get("v_estado", "")
-    v_fecha_desde = request.GET.get("v_fecha_desde", "")
-    v_fecha_hasta = request.GET.get("v_fecha_hasta", "")
-    v_page        = request.GET.get("v_page", 1)
- 
-    sales_qs = SalesInvoice.objects.select_related("customer").order_by("-invoice_date", "-id")
-    if v_estado:
-        sales_qs = sales_qs.filter(status=v_estado)
-    if v_fecha_desde:
-        sales_qs = sales_qs.filter(invoice_date__gte=v_fecha_desde)
-    if v_fecha_hasta:
-        sales_qs = sales_qs.filter(invoice_date__lte=v_fecha_hasta)
- 
-    v_paginator   = Paginator(sales_qs, PAGE_SIZE)
-    sales_invoices = v_paginator.get_page(v_page)
- 
+
+    sales_invoices = SalesInvoice.objects.select_related("customer").order_by("-invoice_date", "-id")
+
+    STATUS_ORDER = {
+        SalesInvoice.STATUS_PENDING: 0,
+        SalesInvoice.STATUS_PARTIAL: 1,
+        SalesInvoice.STATUS_PAID:    2,
+    }
+
+    customers_map = {}
+    for inv in sales_invoices:
+        cid = inv.customer_id
+        if cid not in customers_map:
+            customers_map[cid] = {
+                "name": inv.customer.name,
+                "invoices": [],
+                "pending_count": 0,
+                "partial_count": 0,
+                "paid_count": 0,
+                "total_pending": Decimal("0.00"),
+            }
+        customers_map[cid]["invoices"].append(inv)
+        if inv.status == SalesInvoice.STATUS_PENDING:
+            customers_map[cid]["pending_count"] += 1
+        elif inv.status == SalesInvoice.STATUS_PARTIAL:
+            customers_map[cid]["partial_count"] += 1
+        elif inv.status == SalesInvoice.STATUS_PAID:
+            customers_map[cid]["paid_count"] += 1
+        customers_map[cid]["total_pending"] += inv.balance_due
+
+    # Ordenar facturas de cada cliente:
+    # 1° pendientes, 2° abonadas, 3° pagadas — dentro de cada grupo por fecha desc
+    for c in customers_map.values():
+        c["invoices"].sort(
+            key=lambda i: (STATUS_ORDER.get(i.status, 9), -i.invoice_date.toordinal())
+        )
+
+    # Clientes: primero los que deben (mayor deuda), luego los saldados por nombre
+    sales_customers = sorted(
+        customers_map.values(),
+        key=lambda c: (-c["total_pending"], c["name"].lower()),
+    )
+
     context = {
         "is_admin": is_admin,
-        "active_tab": active_tab,
         "sales_invoices": sales_invoices,
-        "total_sales_invoices": SalesInvoice.objects.count(),
-        "v_estado": v_estado,
-        "v_fecha_desde": v_fecha_desde,
-        "v_fecha_hasta": v_fecha_hasta,
+        "sales_customers": sales_customers,
+        "total_sales_invoices": sales_invoices.count(),
     }
- 
+
     if is_admin:
-        # ── Filtros y paginación de compras ────────────────────────────────────
-        c_estado      = request.GET.get("c_estado", "")
-        c_fecha_desde = request.GET.get("c_fecha_desde", "")
-        c_fecha_hasta = request.GET.get("c_fecha_hasta", "")
-        c_page        = request.GET.get("c_page", 1)
- 
-        purchase_qs = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
-        if c_estado:
-            purchase_qs = purchase_qs.filter(status=c_estado)
-        if c_fecha_desde:
-            purchase_qs = purchase_qs.filter(invoice_date__gte=c_fecha_desde)
-        if c_fecha_hasta:
-            purchase_qs = purchase_qs.filter(invoice_date__lte=c_fecha_hasta)
- 
-        c_paginator      = Paginator(purchase_qs, PAGE_SIZE)
-        purchase_invoices = c_paginator.get_page(c_page)
- 
-        all_purchases = PurchaseInvoice.objects.all()
-        all_sales     = SalesInvoice.objects.all()
- 
+        purchase_invoices = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
         context.update({
             "purchase_invoices": purchase_invoices,
-            "total_purchase_invoices": all_purchases.count(),
-            "total_purchased": all_purchases.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
-            "total_sold":      all_sales.aggregate(total=Sum("total_amount")).get("total")     or Decimal("0.00"),
-            "c_estado": c_estado,
-            "c_fecha_desde": c_fecha_desde,
-            "c_fecha_hasta": c_fecha_hasta,
+            "total_purchase_invoices": purchase_invoices.count(),
+            "total_purchased": purchase_invoices.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
+            "total_sold": sales_invoices.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
         })
- 
+
     return render(request, "core/purchases/home.html", context)
  
 
@@ -365,298 +366,105 @@ def period_report(request):
 
     import datetime
     from django.db.models import Count
+    from collections import defaultdict
 
     today = timezone.localdate()
 
-    # ── Modo: semanal o mensual ───────────────────────────────────────────────
-    mode = request.GET.get("mode", "weekly")  # "weekly" | "monthly"
+    # Fechas por defecto: domingo anterior → hoy
+    # (el domingo pasado como inicio, hoy como fin)
+    days_since_sunday = (today.weekday() + 1) % 7
+    default_start = today - datetime.timedelta(days=days_since_sunday)
+    default_end   = today
 
-    MONTHS_ES = {
-        1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril",
-        5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto",
-        9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre",
+    # Leer parámetros GET
+    try:
+        date_from = datetime.date.fromisoformat(request.GET.get("date_from", ""))
+    except (ValueError, TypeError):
+        date_from = default_start
+
+    try:
+        date_to = datetime.date.fromisoformat(request.GET.get("date_to", ""))
+    except (ValueError, TypeError):
+        date_to = default_end
+
+    # Proteger: date_from no puede ser mayor que date_to
+    if date_from > date_to:
+        date_from, date_to = date_to, date_from
+
+    period_label = (
+        f"{date_from.strftime('%d/%m/%Y')} - {date_to.strftime('%d/%m/%Y')}"
+    )
+
+    # Ventas en el rango
+    sales_invoices_qs = SalesInvoice.objects.filter(
+        invoice_date__gte=date_from,
+        invoice_date__lte=date_to,
+    ).select_related("customer")
+
+    stotals = sales_invoices_qs.aggregate(
+        total_amount=Sum("total_amount"),
+        total_paid=Sum("amount_paid"),
+        total_pending=Sum("balance_due"),
+    )
+    total_sold      = stotals.get("total_amount")  or Decimal("0.00")
+    total_collected = stotals.get("total_paid")    or Decimal("0.00")
+    total_pending   = stotals.get("total_pending") or Decimal("0.00")
+
+    # Resumen por cliente
+    sales_by_customer_qs = (
+        sales_invoices_qs
+        .values("customer__name")
+        .annotate(
+            total=Sum("total_amount"),
+            paid=Sum("amount_paid"),
+            pending=Sum("balance_due"),
+            num_invoices=Count("id"),
+        )
+        # Primero los que deben (pending > 0), luego los saldados
+        # Django no permite ordenar por anotación booleana directamente,
+        # así que ordenamos por pending desc (mayor deuda primero), luego por nombre
+        .order_by("-pending", "customer__name")
+    )
+
+    # Agrupar facturas por cliente
+    sales_invoices_list = list(
+        sales_invoices_qs.order_by("invoice_date", "id")
+    )
+
+    invoices_by_customer = defaultdict(list)
+    for inv in sales_invoices_list:
+        invoices_by_customer[inv.customer_id].append(inv)
+
+    name_to_id = {inv.customer.name: inv.customer_id for inv in sales_invoices_list}
+
+    customers_with_invoices = []
+    for row in sales_by_customer_qs:
+        cname = row["customer__name"]
+        cid   = name_to_id.get(cname)
+        invoices = sorted(
+            invoices_by_customer.get(cid, []),
+            # Pendientes/abonadas primero, pagadas al final
+            key=lambda i: (i.status == "paid", i.invoice_number),
+        )
+        customers_with_invoices.append({
+            "name":         cname,
+            "num_invoices": row["num_invoices"],
+            "total":        row["total"],
+            "paid":         row["paid"],
+            "pending":      row["pending"],
+            "invoices":     invoices,
+        })
+
+    context = {
+        "date_from":    date_from,
+        "date_to":      date_to,
+        "period_label": period_label,
+        "today":        today,
+        "sales_invoices":           sales_invoices_list,
+        "customers_with_invoices":  customers_with_invoices,
+        "total_sold":      total_sold,
+        "total_collected": total_collected,
+        "total_pending":   total_pending,
     }
-
-    # ── Rango de años disponibles ─────────────────────────────────────────────
-    first_purchase = PurchaseInvoice.objects.order_by("invoice_date").first()
-    first_sale     = SalesInvoice.objects.order_by("invoice_date").first()
-    start_year = today.year
-    if first_purchase:
-        start_year = min(start_year, first_purchase.invoice_date.year)
-    if first_sale:
-        start_year = min(start_year, first_sale.invoice_date.year)
-    available_years = list(range(start_year, today.year + 1))
-
-    # ════════════════════════════════════════════════════════════════════════
-    # MODO SEMANAL
-    # ════════════════════════════════════════════════════════════════════════
-    if mode == "weekly":
-        iso = today.isocalendar()  # (year, week, weekday)
-
-        try:
-            year = int(request.GET.get("year", iso[0]))
-        except (ValueError, TypeError):
-            year = iso[0]
-
-        try:
-            week = int(request.GET.get("week", iso[1]))
-        except (ValueError, TypeError):
-            week = iso[1]
-
-        # Clamp week to valid range for that year
-        max_week = datetime.date(year, 12, 28).isocalendar()[1]
-        week = max(1, min(week, max_week))
-
-        # Lunes y domingo de la semana seleccionada
-        week_start = datetime.date.fromisocalendar(year, week, 1)   # lunes
-        week_end   = datetime.date.fromisocalendar(year, week, 7)   # domingo
-
-        # Semana anterior y siguiente para navegación
-        prev_date  = week_start - datetime.timedelta(days=1)
-        next_date  = week_end   + datetime.timedelta(days=1)
-        prev_week  = prev_date.isocalendar()[1]
-        prev_wyear = prev_date.isocalendar()[0]
-        next_week  = next_date.isocalendar()[1]
-        next_wyear = next_date.isocalendar()[0]
-
-        # ── Compras de la semana ──────────────────────────────────────────
-        purchase_invoices = PurchaseInvoice.objects.filter(
-            invoice_date__gte=week_start,
-            invoice_date__lte=week_end,
-        ).select_related("supplier").order_by("invoice_date", "id")
-
-        ptotals = purchase_invoices.aggregate(
-            total_amount=Sum("total_amount"),
-            total_kilos=Sum("total_kilos"),
-            total_freight=Sum("freight_cost"),
-        )
-        total_purchased        = ptotals.get("total_amount")  or Decimal("0.00")
-        total_kilos_purchased  = ptotals.get("total_kilos")   or Decimal("0.00")
-        total_freight          = ptotals.get("total_freight") or Decimal("0.00")
-
-        purchases_by_supplier = (
-            purchase_invoices
-            .values("supplier__name")
-            .annotate(
-                subtotal=Sum("subtotal"),
-                freight=Sum("freight_cost"),
-                total=Sum("total_amount"),
-                kilos=Sum("total_kilos"),
-                num_invoices=Count("id"),
-            )
-            .order_by("-total")
-        )
-
-        # ── Ventas de la semana ───────────────────────────────────────────
-        sales_invoices = SalesInvoice.objects.filter(
-            invoice_date__gte=week_start,
-            invoice_date__lte=week_end,
-        ).select_related("customer").order_by("invoice_date", "id")
-
-        stotals = sales_invoices.aggregate(
-            total_amount=Sum("total_amount"),
-            total_paid=Sum("amount_paid"),
-            total_pending=Sum("balance_due"),
-        )
-        total_sold      = stotals.get("total_amount")  or Decimal("0.00")
-        total_collected = stotals.get("total_paid")    or Decimal("0.00")
-        total_pending   = stotals.get("total_pending") or Decimal("0.00")
-
-        sales_by_customer = (
-            sales_invoices
-            .values("customer__name")
-            .annotate(
-                total=Sum("total_amount"),
-                paid=Sum("amount_paid"),
-                pending=Sum("balance_due"),
-                num_invoices=Count("id"),
-            )
-            .order_by("-total")
-        )
-
-        # Pagos recibidos durante la semana (por fecha de pago)
-        from .models import SalesPayment
-        payments_in_period = SalesPayment.objects.filter(
-            payment_date__gte=week_start,
-            payment_date__lte=week_end,
-        ).aggregate(total=Sum("amount"))
-        total_payments_received = payments_in_period.get("total") or Decimal("0.00")
-
-        # Etiqueta del período
-        period_label = (
-            f"Semana {week} · "
-            f"{week_start.strftime('%d/%m')} – {week_end.strftime('%d/%m/%Y')}"
-        )
-
-        # Semanas disponibles del año seleccionado (para el selector)
-        max_week_selected = datetime.date(year, 12, 28).isocalendar()[1]
-        available_weeks = []
-        for w in range(1, max_week_selected + 1):
-            ws = datetime.date.fromisocalendar(year, w, 1)
-            we = datetime.date.fromisocalendar(year, w, 7)
-            available_weeks.append({
-                "num": w,
-                "label": f"Sem. {w}  ({ws.strftime('%d/%m')} – {we.strftime('%d/%m')})",
-            })
-
-        context = {
-            "mode": "weekly",
-            "year": year,
-            "week": week,
-            "week_start": week_start,
-            "week_end": week_end,
-            "period_label": period_label,
-            "available_years": available_years,
-            "available_weeks": available_weeks,
-            "prev_week": prev_week,
-            "prev_wyear": prev_wyear,
-            "next_week": next_week,
-            "next_wyear": next_wyear,
-            "can_go_next": next_date <= today,
-            # Compras
-            "purchase_invoices": purchase_invoices,
-            "purchases_by_supplier": purchases_by_supplier,
-            "total_purchased": total_purchased,
-            "total_kilos_purchased": total_kilos_purchased,
-            "total_freight": total_freight,
-            # Ventas
-            "sales_invoices": sales_invoices,
-            "sales_by_customer": sales_by_customer,
-            "total_sold": total_sold,
-            "total_collected": total_collected,
-            "total_pending": total_pending,
-            "total_payments_received": total_payments_received,
-            # Balance
-            "gross_margin": total_sold - total_purchased,
-            # Compartidos
-            "months": [(k, v) for k, v in MONTHS_ES.items()],
-        }
-
-    # ════════════════════════════════════════════════════════════════════════
-    # MODO MENSUAL
-    # ════════════════════════════════════════════════════════════════════════
-    else:
-        try:
-            year = int(request.GET.get("year", today.year))
-        except (ValueError, TypeError):
-            year = today.year
-
-        try:
-            month = int(request.GET.get("month", today.month))
-            if not 1 <= month <= 12:
-                month = today.month
-        except (ValueError, TypeError):
-            month = today.month
-
-        # Mes anterior / siguiente
-        if month == 1:
-            prev_month, prev_myear = 12, year - 1
-        else:
-            prev_month, prev_myear = month - 1, year
-
-        if month == 12:
-            next_month, next_myear = 1, year + 1
-        else:
-            next_month, next_myear = month + 1, year
-
-        can_go_next = (next_myear < today.year) or (
-            next_myear == today.year and next_month <= today.month
-        )
-
-        # ── Compras del mes ───────────────────────────────────────────────
-        purchase_invoices = PurchaseInvoice.objects.filter(
-            invoice_date__year=year,
-            invoice_date__month=month,
-        ).select_related("supplier").order_by("invoice_date", "id")
-
-        ptotals = purchase_invoices.aggregate(
-            total_amount=Sum("total_amount"),
-            total_kilos=Sum("total_kilos"),
-            total_freight=Sum("freight_cost"),
-        )
-        total_purchased       = ptotals.get("total_amount")  or Decimal("0.00")
-        total_kilos_purchased = ptotals.get("total_kilos")   or Decimal("0.00")
-        total_freight         = ptotals.get("total_freight") or Decimal("0.00")
-
-        purchases_by_supplier = (
-            purchase_invoices
-            .values("supplier__name")
-            .annotate(
-                subtotal=Sum("subtotal"),
-                freight=Sum("freight_cost"),
-                total=Sum("total_amount"),
-                kilos=Sum("total_kilos"),
-                num_invoices=Count("id"),
-            )
-            .order_by("-total")
-        )
-
-        # ── Ventas del mes ────────────────────────────────────────────────
-        sales_invoices = SalesInvoice.objects.filter(
-            invoice_date__year=year,
-            invoice_date__month=month,
-        ).select_related("customer").order_by("invoice_date", "id")
-
-        stotals = sales_invoices.aggregate(
-            total_amount=Sum("total_amount"),
-            total_paid=Sum("amount_paid"),
-            total_pending=Sum("balance_due"),
-        )
-        total_sold      = stotals.get("total_amount")  or Decimal("0.00")
-        total_collected = stotals.get("total_paid")    or Decimal("0.00")
-        total_pending   = stotals.get("total_pending") or Decimal("0.00")
-
-        sales_by_customer = (
-            sales_invoices
-            .values("customer__name")
-            .annotate(
-                total=Sum("total_amount"),
-                paid=Sum("amount_paid"),
-                pending=Sum("balance_due"),
-                num_invoices=Count("id"),
-            )
-            .order_by("-total")
-        )
-
-        from .models import SalesPayment
-        payments_in_period = SalesPayment.objects.filter(
-            payment_date__year=year,
-            payment_date__month=month,
-        ).aggregate(total=Sum("amount"))
-        total_payments_received = payments_in_period.get("total") or Decimal("0.00")
-
-        month_name   = MONTHS_ES[month]
-        period_label = f"{month_name} {year}"
-
-        context = {
-            "mode": "monthly",
-            "year": year,
-            "month": month,
-            "month_name": month_name,
-            "period_label": period_label,
-            "available_years": available_years,
-            "prev_month": prev_month,
-            "prev_myear": prev_myear,
-            "next_month": next_month,
-            "next_myear": next_myear,
-            "can_go_next": can_go_next,
-            # Compras
-            "purchase_invoices": purchase_invoices,
-            "purchases_by_supplier": purchases_by_supplier,
-            "total_purchased": total_purchased,
-            "total_kilos_purchased": total_kilos_purchased,
-            "total_freight": total_freight,
-            # Ventas
-            "sales_invoices": sales_invoices,
-            "sales_by_customer": sales_by_customer,
-            "total_sold": total_sold,
-            "total_collected": total_collected,
-            "total_pending": total_pending,
-            "total_payments_received": total_payments_received,
-            # Balance
-            "gross_margin": total_sold - total_purchased,
-            # Compartidos
-            "months": [(k, v) for k, v in MONTHS_ES.items()],
-        }
 
     return render(request, "core/purchases/period_report.html", context)
