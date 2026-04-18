@@ -81,9 +81,9 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
             ).select_related("product", "supplier")
 
     def clean_weight_kg(self):
-        weight = self.cleaned_data.get("weight_kg") or Decimal("0.00")
-        if weight <= 0:
-            raise forms.ValidationError("Debes ingresar un peso mayor a cero.")
+        weight = self.cleaned_data.get("weight_kg")
+        if weight is not None and weight < 0:
+            raise forms.ValidationError("El peso no puede ser negativo.")
         return weight
 
     def clean_basket_quantity(self):

@@ -182,37 +182,36 @@
             <table class="min-w-full text-sm">
                 <thead>
                     <tr class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
-                        <th class="px-5 py-3 text-left">N&#xBA; Factura</th>
-                        <th class="px-5 py-3 text-left">Proveedor</th>
-                        <th class="px-5 py-3 text-left">Fecha</th>
-                        <th class="px-5 py-3 text-right">Kilos</th>
-                        <th class="px-5 py-3 text-right">Subtotal</th>
-                        <th class="px-5 py-3 text-right">Flete</th>
-                        <th class="px-5 py-3 text-right">Total</th>
-                        <th class="px-5 py-3 text-right">Saldo</th>
-                        <th class="px-5 py-3 text-center">Estado</th>
+                        <th class="px-4 py-3 text-left whitespace-nowrap">N&#xBA;</th>
+                        <th class="px-4 py-3 text-left whitespace-nowrap">Proveedor</th>
+                        <th class="px-4 py-3 text-left whitespace-nowrap">Fecha</th>
+                        <th class="px-4 py-3 text-right whitespace-nowrap">Kilos</th>
+                        <th class="px-4 py-3 text-right whitespace-nowrap">Subtotal</th>
+                        <th class="px-4 py-3 text-right whitespace-nowrap">Flete</th>
+                        <th class="px-4 py-3 text-right whitespace-nowrap">Total</th>
+                        <th class="px-4 py-3 text-right whitespace-nowrap">Saldo</th>
+                        <th class="px-4 py-3 text-center whitespace-nowrap">Estado</th>
+                        <th class="px-4 py-3 text-center whitespace-nowrap">Acciones</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {% for inv in purchase_invoices %}
-                    <tr class="purchase-row hover:bg-slate-50 transition"
-                        data-status="{{ inv.status }}"
-                        data-date="{{ inv.invoice_date|date:'Y-m-d' }}">
-                        <td class="px-5 py-3.5 font-mono font-semibold text-slate-700 text-xs">{{ inv.invoice_number }}</td>
-                        <td class="px-5 py-3.5 font-medium text-slate-800">{{ inv.supplier.name }}</td>
-                        <td class="px-5 py-3.5 text-slate-500">{{ inv.invoice_date }}</td>
-                        <td class="px-5 py-3.5 text-right text-slate-600">{{ inv.total_kilos|floatformat:1 }} kg</td>
-                        <td class="px-5 py-3.5 text-right text-slate-600">${{ inv.subtotal|floatformat:0 }}</td>
-                        <td class="px-5 py-3.5 text-right text-slate-500">${{ inv.freight_cost|floatformat:0 }}</td>
-                        <td class="px-5 py-3.5 text-right font-semibold text-slate-800">${{ inv.total_amount|floatformat:0 }}</td>
-                        <td class="px-5 py-3.5 text-right">
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="px-4 py-3 font-mono font-semibold text-slate-700 text-xs whitespace-nowrap">{{ inv.invoice_number }}</td>
+                        <td class="px-4 py-3 font-medium text-slate-800 whitespace-nowrap">{{ inv.supplier.name }}</td>
+                        <td class="px-4 py-3 text-slate-500 whitespace-nowrap">{{ inv.invoice_date|date:"d/m/Y" }}</td>
+                        <td class="px-4 py-3 text-right text-slate-600 whitespace-nowrap">{{ inv.total_kilos|floatformat:1 }} kg</td>
+                        <td class="px-4 py-3 text-right text-slate-600 whitespace-nowrap">{{ inv.subtotal|pesos }}</td>
+                        <td class="px-4 py-3 text-right text-slate-500 whitespace-nowrap">{{ inv.freight_cost|pesos }}</td>
+                        <td class="px-4 py-3 text-right font-semibold text-slate-800 whitespace-nowrap">{{ inv.total_amount|pesos }}</td>
+                        <td class="px-4 py-3 text-right whitespace-nowrap">
                             {% if inv.balance_due > 0 %}
-                                <span class="text-red-600 font-semibold">${{ inv.balance_due|floatformat:0 }}</span>
+                                <span class="text-red-600 font-semibold">{{ inv.balance_due|pesos }}</span>
                             {% else %}
                                 <span class="text-emerald-500 font-semibold">&#8212;</span>
                             {% endif %}
                         </td>
-                        <td class="px-5 py-3.5 text-center">
+                        <td class="px-4 py-3 text-center whitespace-nowrap">
                             {% if inv.status == 'paid' %}
                                 <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700">Pagada</span>
                             {% elif inv.status == 'partial' %}
@@ -221,14 +220,63 @@
                                 <span class="inline-flex px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-600">Pendiente</span>
                             {% endif %}
                         </td>
+                        <td class="px-4 py-3 text-center whitespace-nowrap">
+                            <div class="flex items-center justify-center gap-3">
+                                <a href="{% url 'purchase_invoice_detail' inv.pk %}"
+                                   class="text-xs text-blue-600 hover:text-blue-800 font-semibold hover:underline underline-offset-2">Ver</a>
+                                {% if inv.status != 'paid' %}
+                                <span class="text-slate-200 select-none">|</span>
+                                <a href="{% url 'add_purchase_payment' inv.pk %}"
+                                   class="text-xs text-emerald-600 hover:text-emerald-800 font-semibold hover:underline underline-offset-2">Pagar</a>
+                                {% endif %}
+                            </div>
+                        </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+ 
+        {% if purchase_invoices.paginator.num_pages > 1 %}
+        <div class="flex items-center justify-between px-5 py-4 border-t border-slate-100">
+            <p class="text-xs text-slate-400">
+                Mostrando {{ purchase_invoices.start_index }}&ndash;{{ purchase_invoices.end_index }}
+                de {{ purchase_invoices.paginator.count }} facturas
+            </p>
+            <div class="flex items-center gap-1">
+                {% if purchase_invoices.has_previous %}
+                <a href="?tab=compras&c_page={{ purchase_invoices.previous_page_number }}{% if c_estado %}&c_estado={{ c_estado }}{% endif %}{% if c_fecha_desde %}&c_fecha_desde={{ c_fecha_desde }}{% endif %}{% if c_fecha_hasta %}&c_fecha_hasta={{ c_fecha_hasta }}{% endif %}"
+                   class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">&#8592; Anterior</a>
+                {% else %}
+                <span class="px-3 py-1.5 rounded-lg border border-slate-100 text-slate-300 text-xs font-medium cursor-not-allowed">&#8592; Anterior</span>
+                {% endif %}
+                {% for num in purchase_invoices.paginator.page_range %}
+                    {% if purchase_invoices.number == num %}
+                        <span class="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold">{{ num }}</span>
+                    {% elif num >= purchase_invoices.number|add:"-2" and num <= purchase_invoices.number|add:"2" %}
+                        <a href="?tab=compras&c_page={{ num }}{% if c_estado %}&c_estado={{ c_estado }}{% endif %}{% if c_fecha_desde %}&c_fecha_desde={{ c_fecha_desde }}{% endif %}{% if c_fecha_hasta %}&c_fecha_hasta={{ c_fecha_hasta }}{% endif %}"
+                           class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+                {% if purchase_invoices.has_next %}
+                <a href="?tab=compras&c_page={{ purchase_invoices.next_page_number }}{% if c_estado %}&c_estado={{ c_estado }}{% endif %}{% if c_fecha_desde %}&c_fecha_desde={{ c_fecha_desde }}{% endif %}{% if c_fecha_hasta %}&c_fecha_hasta={{ c_fecha_hasta }}{% endif %}"
+                   class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">Siguiente &#8594;</a>
+                {% else %}
+                <span class="px-3 py-1.5 rounded-lg border border-slate-100 text-slate-300 text-xs font-medium cursor-not-allowed">Siguiente &#8594;</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+ 
         {% else %}
-        <div class="flex flex-col items-center justify-center py-20 text-slate-400">
-            <p class="text-sm font-semibold text-slate-500">Sin facturas de compra</p>
+        <div class="flex flex-col items-center justify-center py-16 text-slate-400">
+            <p class="text-sm font-semibold text-slate-500">
+                {% if c_estado or c_fecha_desde or c_fecha_hasta %}Sin resultados para los filtros aplicados.
+                {% else %}Sin facturas de compra.{% endif %}
+            </p>
+            {% if c_estado or c_fecha_desde or c_fecha_hasta %}
+            <a href="?tab=compras" class="text-xs mt-2 text-blue-500 hover:underline">Limpiar filtros</a>
+            {% endif %}
         </div>
         {% endif %}
     </div>
@@ -304,7 +352,9 @@
         {% comment %}MODO TARJETAS - oculto, aparece al buscar{% endcomment %}
         <div id="ventas-cards-wrap" class="hidden divide-y divide-slate-100">
             {% for customer in sales_customers %}
-            <div class="customer-card" data-customer="{{ customer.name|lower }}">
+            <div class="customer-card"
+                 data-customer="{{ customer.name|lower }}"
+                 data-invoices="{% for inv in customer.invoices %}{{ inv.invoice_number }} {% endfor %}">
 
                 <div class="flex items-center gap-4 px-5 py-4 hover:bg-slate-50 transition">
                     <div class="w-11 h-11 rounded-xl flex items-center justify-center text-base font-bold shrink-0
@@ -574,6 +624,8 @@ document.addEventListener('DOMContentLoaded', function () {
         cards.forEach(function (card) {
             var name  = card.dataset.customer || '';
             var match = name.includes(query);
+            var invoices = card.dataset.invoices  || '';
+            var match    = name.includes(query) || invoices.includes(query);
             card.style.display = match ? '' : 'none';
             if (match) visible++;
         });
