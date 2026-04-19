@@ -11,7 +11,7 @@ from .models import (
     SalesPayment,
     SupplierProduct,
 )
-from django.forms import formset_factory
+from django.forms import formset_factory, modelformset_factory
 
 
 # ─────────────────────────────────────────
@@ -33,7 +33,7 @@ class PurchaseInvoiceForm(forms.ModelForm):
             "supplier": forms.Select(attrs={
                 "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
             }),
-            "invoice_date": forms.DateInput(attrs={
+            "invoice_date": forms.DateInput(format="%Y-%m-%d", attrs={
                 "type": "date",
                 "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
             }),
@@ -97,7 +97,7 @@ class PurchasePaymentForm(forms.ModelForm):
         model = PurchasePayment
         fields = ["payment_date", "amount", "notes"]
         widgets = {
-            "payment_date": forms.DateInput(attrs={
+            "payment_date": forms.DateInput(format="%Y-%m-%d", attrs={
                 "type": "date",
                 "class": "w-full rounded-xl border border-slate-300 px-3 py-2",
             }),
@@ -172,7 +172,7 @@ class SalesInvoiceForm(forms.ModelForm):
             "mensajero": forms.Select(attrs={
                 "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
             }),
-            "invoice_date": forms.DateInput(attrs={
+            "invoice_date": forms.DateInput(format="%Y-%m-%d", attrs={
                 "type": "date",
                 "class": "w-full rounded-xl border-2 border-gray-400 px-3 py-2.5 text-base focus:border-blue-500 focus:outline-none",
             }),
@@ -216,6 +216,14 @@ SalesInvoiceItemFormSet = formset_factory(
     validate_min=True,
 )
 
+# Formset para EDITAR (con instancias del modelo, soporta DELETE)
+SalesInvoiceItemModelFormSet = modelformset_factory(
+    SalesInvoiceItem,
+    form=SalesInvoiceItemForm,
+    extra=0,
+    can_delete=True,
+)
+
 
 # ─────────────────────────────────────────
 # PAGOS
@@ -246,7 +254,7 @@ class SalesPaymentForm(forms.ModelForm):
         model = SalesPayment
         fields = ["payment_date", "amount", "notes"]
         widgets = {
-            "payment_date": forms.DateInput(attrs={
+            "payment_date": forms.DateInput(format="%Y-%m-%d", attrs={
                 "type": "date",
                 "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none transition",
             }),

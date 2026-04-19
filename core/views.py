@@ -19,6 +19,7 @@ from .forms import (
     SalesInvoiceForm,
     SalesInvoiceItemForm,
     SalesInvoiceItemFormSet,
+    SalesInvoiceItemModelFormSet,
     SalesPaymentForm,
 )
 from .models import Product, PurchaseInvoice, PurchasePayment, SalesInvoice, SalesPayment, Supplier, SupplierProduct
@@ -201,6 +202,89 @@ def get_supplier_products(request):
     return JsonResponse({"products": products})
 
 
+# ── Edit purchase invoice (administrator only) ─────────────────────────────────
+
+@login_required
+@transaction.atomic
+def edit_purchase_invoice(request, pk):
+    if not is_administrator(request.user):
+        raise PermissionDenied
+
+    invoice = get_object_or_404(
+        PurchaseInvoice.objects.select_related("supplier").prefetch_related(
+            "items__supplier_product__product", "payments"
+        ),
+        pk=pk,
+    )
+    item = invoice.items.first()
+    selected_supplier = invoice.supplier
+
+    if request.method == "POST":
+        # Get supplier from POST in case it changed
+        post_supplier_id = request.POST.get("supplier")
+        if post_supplier_id:
+            try:
+                selected_supplier = Supplier.objects.get(pk=post_supplier_id, is_active=True)
+            except Supplier.DoesNotExist:
+                selected_supplier = invoice.supplier
+
+        invoice_form = PurchaseInvoiceForm(request.POST, instance=invoice)
+        item_form = PurchaseInvoiceItemForm(
+            request.POST, instance=item, supplier=selected_supplier
+        )
+
+        if invoice_form.is_valid() and item_form.is_valid():
+            is_paid = invoice_form.cleaned_data.get("is_paid", False)
+
+            updated_invoice = invoice_form.save()
+
+            updated_item = item_form.save(commit=False)
+            updated_item.invoice = updated_invoice
+            updated_item.save()
+
+            # Traer estado fresco después de que item.save() recalculó los totales
+            updated_invoice.refresh_from_db()
+
+            if is_paid:
+                # Marcar como pagada: registrar el saldo pendiente si lo hay
+                if updated_invoice.balance_due > 0:
+                    PurchasePayment.objects.create(
+                        invoice=updated_invoice,
+                        payment_date=updated_invoice.invoice_date,
+                        amount=updated_invoice.balance_due,
+                        notes="Pago registrado al editar la factura.",
+                    )
+            else:
+                # Desmarcar pagada: eliminar TODOS los pagos sin importar si era
+                # pagada (STATUS_PAID) o abonada (STATUS_PARTIAL).
+                # Usamos filter() por PK para evitar el manager cacheado en memoria.
+                PurchasePayment.objects.filter(invoice_id=updated_invoice.pk).delete()
+                # Instancia fresca para que update_totals() no use datos obsoletos
+                fresh = PurchaseInvoice.objects.get(pk=updated_invoice.pk)
+                fresh.update_totals()
+
+            messages.success(
+                request,
+                f"Factura de compra #{updated_invoice.invoice_number} actualizada correctamente.",
+            )
+            return redirect("home")
+    else:
+        invoice_form = PurchaseInvoiceForm(
+            instance=invoice,
+            initial={"is_paid": invoice.status == PurchaseInvoice.STATUS_PAID},
+        )
+        item_form = PurchaseInvoiceItemForm(instance=item, supplier=selected_supplier)
+
+    context = {
+        "invoice": invoice,
+        "invoice_form": invoice_form,
+        "item_form": item_form,
+        "selected_supplier": selected_supplier,
+        "initial_product_id": item.supplier_product_id if item else "",
+    }
+    return render(request, "core/purchases/edit_purchase_invoice.html", context)
+
+
 # ── Purchase invoice detail ────────────────────────────────────────────────────
  
 @login_required
@@ -357,7 +441,106 @@ def add_sales_payment(request, pk):
         "form": form,
     }
     return render(request, "core/purchases/add_sales_payment.html", context)
-# ── reportes----------------
+
+# ── Edit sales invoice (administrator only) ────────────────────────────────────
+ 
+@login_required
+@transaction.atomic
+def edit_sales_invoice(request, pk):
+    if not is_administrator(request.user):
+        raise PermissionDenied
+ 
+    invoice = get_object_or_404(
+        SalesInvoice.objects.select_related("customer").prefetch_related("items__product"),
+        pk=pk,
+    )
+ 
+    if request.method == "POST":
+        invoice_form = SalesInvoiceForm(request.POST, instance=invoice)
+        item_formset = SalesInvoiceItemModelFormSet(
+            request.POST,
+            queryset=invoice.items.all(),
+            prefix="items",
+        )
+ 
+        if invoice_form.is_valid() and item_formset.is_valid():
+            is_paid = invoice_form.cleaned_data.get("is_paid", False)
+ 
+            invoice_form.save()
+ 
+            # Process each form: delete marked ones, save the rest
+            for form in item_formset:
+                if not form.cleaned_data:
+                    continue
+                if form.cleaned_data.get("DELETE"):
+                    if form.instance.pk:
+                        form.instance.delete()
+                else:
+                    # Only save if the form has meaningful data (product selected)
+                    if form.cleaned_data.get("product"):
+                        item = form.save(commit=False)
+                        item.invoice = invoice
+                        item.save()
+ 
+            invoice.refresh_from_db()
+            invoice.update_totals()
+
+            # Corrección del estado de pago
+            if is_paid:
+                # Marcar como pagada: registrar el saldo pendiente si lo hay
+                invoice.refresh_from_db()
+                if invoice.balance_due > 0:
+                    SalesPayment.objects.create(
+                        invoice=invoice,
+                        payment_date=invoice.invoice_date,
+                        amount=invoice.balance_due,
+                        notes="Pago registrado al editar la factura.",
+                    )
+            else:
+                # Desmarcar pagada: eliminar TODOS los pagos sin importar si era
+                # pagada (STATUS_PAID) o abonada (STATUS_PARTIAL).
+                # Usamos filter() por PK para evitar el manager cacheado en memoria.
+                SalesPayment.objects.filter(invoice_id=invoice.pk).delete()
+                # Instancia fresca para que update_totals() no use datos obsoletos
+                fresh = SalesInvoice.objects.get(pk=invoice.pk)
+                fresh.update_totals()
+ 
+            messages.success(
+                request,
+                f"Factura #{invoice.invoice_number} actualizada correctamente.",
+            )
+            return redirect("home")
+ 
+    else:
+        invoice_form = SalesInvoiceForm(
+            instance=invoice,
+            initial={"is_paid": invoice.status == SalesInvoice.STATUS_PAID},
+        )
+        item_formset = SalesInvoiceItemModelFormSet(
+            queryset=invoice.items.all(),
+            prefix="items",
+        )
+ 
+    products_data = {
+        str(p.id): {
+            "pricing_type": p.sale_pricing_type,
+            "requires_weight": p.requires_weight,
+            "requires_blocks": p.requires_blocks,
+            "kg_per_block": float(p.kg_per_block) if p.kg_per_block else None,
+        }
+        for p in Product.objects.filter(is_active=True)
+    }
+ 
+    context = {
+        "invoice": invoice,
+        "invoice_form": invoice_form,
+        "item_formset": item_formset,
+        "products_data": json.dumps(products_data),
+    }
+    return render(request, "core/purchases/edit_sales_invoice.html", context)
+
+
+# ── Reportes ──────────────────────────────────────────────────────────────────
 
 @login_required
 def period_report(request):

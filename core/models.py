@@ -293,21 +293,24 @@ class PurchaseInvoice(TimeStampedModel):
             self.payments.aggregate(total=Sum("amount")).get("total")
             or Decimal("0.00")
         )
-
+ 
         self.total_kilos = kilos_total
         self.subtotal = items_total
         self.total_amount = items_total + (self.freight_cost or Decimal("0.00"))
         self.amount_paid = payments_total
         self.balance_due = self.total_amount - self.amount_paid
-
-        if self.balance_due <= Decimal("0.00"):
+ 
+        if self.total_amount > Decimal("0.00") and self.balance_due <= Decimal("0.00"):
+            # Pagada: hay un total real y está completamente cubierto
             self.balance_due = Decimal("0.00")
             self.status = self.STATUS_PAID
         elif self.amount_paid > Decimal("0.00"):
+            # Abonada parcialmente
             self.status = self.STATUS_PARTIAL
         else:
+            # Sin pagos o total en cero → pendiente
             self.status = self.STATUS_PENDING
-
+ 
         if commit:
             self.save(
                 update_fields=[
@@ -568,20 +571,23 @@ class SalesInvoice(TimeStampedModel):
             self.payments.aggregate(total=Sum("amount")).get("total")
             or Decimal("0.00")
         )
-
+ 
         self.subtotal = items_total
         self.total_amount = items_total
         self.amount_paid = payments_total
         self.balance_due = self.total_amount - self.amount_paid
-
-        if self.balance_due <= Decimal("0.00"):
+ 
+        if self.total_amount > Decimal("0.00") and self.balance_due <= Decimal("0.00"):
+            # Pagada: hay un total real y está completamente cubierto
             self.balance_due = Decimal("0.00")
             self.status = self.STATUS_PAID
         elif self.amount_paid > Decimal("0.00"):
+            # Abonada parcialmente
             self.status = self.STATUS_PARTIAL
         else:
+            # Sin pagos o total en cero → pendiente
             self.status = self.STATUS_PENDING
-
+ 
         if commit:
             self.save(
                 update_fields=[

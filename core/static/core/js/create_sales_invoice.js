@@ -89,6 +89,15 @@ document.addEventListener("DOMContentLoaded", function () {
         banner.scrollIntoView({ behavior: "smooth", block: "center" });
     }
 
+    // ─── Filas activas (no marcadas para DELETE) ───────────────────────────────
+ 
+    function getActiveRows() {
+        return [...container.querySelectorAll(".item-row")].filter(row => {
+            const del = row.querySelector("input[name$='-DELETE']");
+            return !del || !del.checked;
+        });
+    }
+
     // ─── Validación del formulario ─────────────────────────────────────────────
 
     function validateForm() {
@@ -413,15 +422,34 @@ document.addEventListener("DOMContentLoaded", function () {
             recalculateGrandTotal();
         });
 
-        row.querySelector(".remove-item-btn")?.addEventListener("click", () => {
-            if (container.querySelectorAll(".item-row").length > 1) {
-                row.remove();
-                renumberForms();
-                recalculateGrandTotal();
-            } else {
-                alert("La factura debe tener al menos un producto.");
-            }
-        });
+        // ── Botón eliminar: soporta modo crear (quitar DOM) y editar (marcar DELETE) ──
+        const removeBtn = row.querySelector(".remove-item-btn");
+        if (removeBtn) {
+            removeBtn.addEventListener("click", () => {
+                const deleteCheckbox = row.querySelector("input[name$='-DELETE']");
+ 
+                if (deleteCheckbox) {
+                    // Modo edición: marcar como eliminado y ocultar la fila
+                    const activeRows = getActiveRows();
+                    if (activeRows.length <= 1) {
+                        alert("La factura debe tener al menos un producto.");
+                        return;
+                    }
+                    deleteCheckbox.checked = true;
+                    row.style.display = "none";
+                    recalculateGrandTotal();
+                } else {
+                    // Modo creación: quitar del DOM
+                    if (container.querySelectorAll(".item-row").length > 1) {
+                        row.remove();
+                        renumberForms();
+                        recalculateGrandTotal();
+                    } else {
+                        alert("La factura debe tener al menos un producto.");
+                    }
+                }
+            });
+        }
     }
 
     // ─── Renumerar formset ────────────────────────────────────────────────────
@@ -442,38 +470,52 @@ document.addEventListener("DOMContentLoaded", function () {
 
     function addNewRow() {
         const index = container.querySelectorAll(".item-row").length;
-        const newRow = container.querySelector(".item-row").cloneNode(true);
-
+ 
+        // Try to find the last row or a blank row to clone
+        const rows = container.querySelectorAll(".item-row");
+        const newRow = rows[rows.length - 1].cloneNode(true);
+ 
         newRow.querySelectorAll("input, select, textarea").forEach(el => {
             ["name", "id"].forEach(attr => {
                 const val = el.getAttribute(attr);
                 if (val) el.setAttribute(attr, val.replace(/items-\d+-/, `items-${index}-`));
             });
+            if (el.type === "checkbox") el.checked = false;
             if (el.type !== "hidden") el.value = "";
             if (el.tagName === "SELECT") el.selectedIndex = 0;
         });
-
+ 
+        // Remove display inputs from pesos setup (will be recreated by initRow)
         newRow.querySelectorAll("input[type=text]:not([name])").forEach(el => el.remove());
         newRow.querySelectorAll("[data-pesos-setup]").forEach(el => {
             el.removeAttribute("data-pesos-setup");
             el.type = "number";
         });
-
+ 
+        // Remove DELETE checkbox from new rows (they're managed by Django for existing items only)
+        newRow.querySelectorAll("input[name$='-DELETE']").forEach(el => {
+            el.closest("div")?.remove() || el.remove();
+        });
+ 
         const label = newRow.querySelector(".field-blocks label");
         if (label?.dataset.originalText) {
             label.textContent = label.dataset.originalText;
             delete label.dataset.originalText;
         }
-
+ 
         newRow.querySelector(".field-blocks")?.classList.add("hidden");
         newRow.querySelector(".field-weight")?.classList.add("hidden");
         newRow.querySelectorAll(".field-price").forEach(el => el.classList.add("hidden"));
-        newRow.querySelector(".row-total") && (newRow.querySelector(".row-total").textContent = "$0");
-
+        const rowTotal = newRow.querySelector(".row-total");
+        if (rowTotal) rowTotal.textContent = "$0";
+ 
         // Limpiar errores de la fila clonada
         newRow.querySelectorAll(".field-error-msg").forEach(el => el.remove());
         newRow.querySelectorAll(".border-red-500").forEach(el => el.classList.remove("border-red-500"));
-
+ 
+        // Ensure row is visible (may have been hidden if cloned from deleted row)
+        newRow.style.display = "";
+ 
         container.appendChild(newRow);
         if (totalFormInput) totalFormInput.value = index + 1;
         initRow(newRow);
