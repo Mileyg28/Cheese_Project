@@ -574,6 +574,11 @@ def period_report(request):
     if date_from > date_to:
         date_from, date_to = date_to, date_from
 
+    # ── Filtro por producto ────────────────────────────────────────────────
+    product_id = request.GET.get("product_id", "").strip()
+    selected_product_id = int(product_id) if product_id.isdigit() else None
+    all_products = Product.objects.filter(is_active=True).order_by("name")
+
     period_label = (
         f"{date_from.strftime('%d/%m/%Y')} - {date_to.strftime('%d/%m/%Y')}"
     )
@@ -583,6 +588,10 @@ def period_report(request):
         invoice_date__gte=date_from,
         invoice_date__lte=date_to,
     ).select_related("customer")
+
+    if selected_product_id:
+        sales_invoices_qs = sales_invoices_qs.filter(items__product_id=selected_product_id
+        ).distinct()
 
     stotals = sales_invoices_qs.aggregate(
         total_amount=Sum("total_amount"),
@@ -643,6 +652,8 @@ def period_report(request):
         "date_to":      date_to,
         "period_label": period_label,
         "today":        today,
+        "all_products":          all_products,
+        "selected_product_id":   selected_product_id,
         "sales_invoices":           sales_invoices_list,
         "customers_with_invoices":  customers_with_invoices,
         "total_sold":      total_sold,
