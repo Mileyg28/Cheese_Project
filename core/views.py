@@ -13,6 +13,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from .forms import (
+    ExpenseForm,
     PurchaseInvoiceForm,
     PurchaseInvoiceItemForm,
     PurchasePaymentForm,
@@ -22,7 +23,7 @@ from .forms import (
     SalesInvoiceItemModelFormSet,
     SalesPaymentForm,
 )
-from .models import Product, PurchaseInvoice, PurchasePayment, SalesInvoice, SalesPayment, Supplier, SupplierProduct
+from .models import Expense, Product, PurchaseInvoice, PurchasePayment, SalesInvoice, SalesPayment, Supplier, SupplierProduct
 
 
 # ── Role helpers ───────────────────────────────────────────────────────────────
@@ -662,3 +663,82 @@ def period_report(request):
     }
 
     return render(request, "core/purchases/period_report.html", context)
+
+
+
+
+#------------------GASTOS--------------
+@login_required
+def create_expense(request):
+    """Register a new expense. Administrators only."""
+    if not is_administrator(request.user):
+        raise PermissionDenied
+ 
+    if request.method == "POST":
+        form = ExpenseForm(request.POST)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Gasto registrado correctamente.")
+            return redirect("expense_list")
+    else:
+        form = ExpenseForm()
+ 
+    return render(request, "core/purchases/create_expense.html", {"form": form})
+ 
+ 
+@login_required
+def expense_list(request):
+    """List of expenses with filters. Administrators only."""
+    if not is_administrator(request.user):
+        raise PermissionDenied
+ 
+    import datetime
+ 
+    expenses = Expense.objects.select_related("motorcycle").order_by("-expense_date", "-id")
+ 
+    # Filter by category
+    category_filter = request.GET.get("category", "")
+    if category_filter:
+        expenses = expenses.filter(category=category_filter)
+ 
+    # Filter by date range
+    try:
+        date_from = datetime.date.fromisoformat(request.GET.get("date_from", ""))
+    except (ValueError, TypeError):
+        date_from = None
+ 
+    try:
+        date_to = datetime.date.fromisoformat(request.GET.get("date_to", ""))
+    except (ValueError, TypeError):
+        date_to = None
+ 
+    if date_from:
+        expenses = expenses.filter(expense_date__gte=date_from)
+    if date_to:
+        expenses = expenses.filter(expense_date__lte=date_to)
+ 
+    total_amount = expenses.aggregate(total=Sum("amount")).get("total") or Decimal("0.00")
+ 
+    # Totals per category (from filtered queryset)
+    totals_by_category = (
+        expenses
+        .values("category")
+        .annotate(total=Sum("amount"))
+        .order_by("-total")
+    )
+    category_labels = dict(Expense.CATEGORY_CHOICES)
+    category_totals = [
+        {"label": category_labels.get(row["category"], row["category"]), "total": row["total"]}
+        for row in totals_by_category
+    ]
+ 
+    context = {
+        "expenses":          expenses,
+        "total_amount":      total_amount,
+        "category_totals":   category_totals,
+        "category_choices":  Expense.CATEGORY_CHOICES,
+        "category_filter":   category_filter,
+        "date_from":         date_from,
+        "date_to":           date_to,
+    }
+    return render(request, "core/purchases/expense_list.html", context)

@@ -1,0 +1,166 @@
+{% extends "core/purchases/base.html" %}
+{% load static %}
+{% load filters %}
+
+{% block title %}Gastos{% endblock %}
+
+{% block content %}
+<div class="space-y-5">
+
+    {# ── Header ── #}
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+            <h2 class="text-2xl font-bold text-slate-900">Gastos</h2>
+            <p class="text-sm text-slate-500 mt-0.5">Historial de gastos operativos y administrativos.</p>
+        </div>
+        <a href="{% url 'create_expense' %}"
+           class="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rose-600 text-white text-sm font-semibold hover:bg-rose-700 transition shadow-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
+            </svg>
+            Registrar gasto
+        </a>
+    </div>
+
+    {# ── Totals by category ── #}
+    {% if category_totals %}
+    <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+        {% for t in category_totals %}
+        <div class="bg-white rounded-2xl border border-slate-200 shadow-sm px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-1 truncate">{{ t.label }}</p>
+            <p class="text-xl font-extrabold text-rose-700">{{ t.total|pesos }}</p>
+        </div>
+        {% endfor %}
+        <div class="bg-rose-50 rounded-2xl border border-rose-200 shadow-sm px-4 py-3">
+            <p class="text-xs font-semibold uppercase tracking-widest text-rose-500 mb-1">Total</p>
+            <p class="text-xl font-extrabold text-rose-700">{{ total_amount|pesos }}</p>
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Filters ── #}
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm px-5 py-4">
+        <form method="get" class="flex flex-wrap items-end gap-3">
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Categoría</label>
+                <select name="category"
+                        class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+                    <option value="">— Todas —</option>
+                    {% for value, label in category_choices %}
+                        <option value="{{ value }}" {% if category_filter == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Desde</label>
+                <input type="date" name="date_from"
+                       value="{{ date_from|date:'Y-m-d' }}"
+                       class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+            </div>
+            <div>
+                <label class="block text-xs font-semibold text-slate-500 mb-1">Hasta</label>
+                <input type="date" name="date_to"
+                       value="{{ date_to|date:'Y-m-d' }}"
+                       class="rounded-xl border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
+            </div>
+            <button type="submit"
+                    class="px-4 py-2 rounded-xl bg-slate-800 text-white text-sm font-semibold hover:bg-slate-700 transition">
+                Filtrar
+            </button>
+            {% if category_filter or date_from or date_to %}
+            <a href="{% url 'expense_list' %}"
+               class="px-4 py-2 rounded-xl border border-slate-300 text-slate-500 text-sm font-medium hover:bg-slate-50 transition">
+                Limpiar
+            </a>
+            {% endif %}
+        </form>
+    </div>
+
+    {# ── Table ── #}
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        {% if expenses %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100">
+                        <th class="px-5 py-3 text-left">Fecha</th>
+                        <th class="px-5 py-3 text-left">Categoría</th>
+                        <th class="px-5 py-3 text-left">Moto</th>
+                        <th class="px-5 py-3 text-left">Descripción</th>
+                        <th class="px-5 py-3 text-right">Monto</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for expense in expenses %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="px-5 py-3.5 text-slate-500 whitespace-nowrap">{{ expense.expense_date }}</td>
+                        <td class="px-5 py-3.5">
+                            <span class="inline-flex items-center gap-1.5">
+                                {% if expense.category == "fuel" %}
+                                    <span class="w-2 h-2 rounded-full bg-orange-400 flex-shrink-0"></span>
+                                {% elif expense.category == "payroll" %}
+                                    <span class="w-2 h-2 rounded-full bg-blue-400 flex-shrink-0"></span>
+                                {% elif expense.category == "rent" %}
+                                    <span class="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0"></span>
+                                {% elif expense.category == "utilities" %}
+                                    <span class="w-2 h-2 rounded-full bg-cyan-400 flex-shrink-0"></span>
+                                {% elif expense.category == "supplies" %}
+                                    <span class="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0"></span>
+                                {% elif expense.category == "administrative" %}
+                                    <span class="w-2 h-2 rounded-full bg-yellow-400 flex-shrink-0"></span>
+                                {% elif expense.category == "uniform" %}
+                                    <span class="w-2 h-2 rounded-full bg-indigo-400 flex-shrink-0"></span>
+                                {% else %}
+                                    <span class="w-2 h-2 rounded-full bg-slate-400 flex-shrink-0"></span>
+                                {% endif %}
+                                <span class="font-medium text-slate-700">{{ expense.get_category_display }}</span>
+                            </span>
+                        </td>
+                        <td class="px-5 py-3.5 text-slate-500">
+                            {{ expense.motorcycle|default:"—" }}
+                        </td>
+                        <td class="px-5 py-3.5 text-slate-500 max-w-xs truncate">
+                            {{ expense.description|default:"—" }}
+                        </td>
+                        <td class="px-5 py-3.5 text-right font-semibold text-rose-700 whitespace-nowrap">
+                            {{ expense.amount|pesos }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot class="border-t-2 border-slate-200 bg-slate-50">
+                    <tr>
+                        <td colspan="4" class="px-5 py-3 text-right text-sm font-semibold text-slate-600">
+                            Total
+                        </td>
+                        <td class="px-5 py-3 text-right font-extrabold text-rose-700 text-base whitespace-nowrap">
+                            {{ total_amount|pesos }}
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="flex flex-col items-center justify-center py-20 text-slate-400">
+            <div class="w-16 h-16 rounded-2xl bg-slate-100 flex items-center justify-center mb-4">
+                <svg class="w-8 h-8 text-slate-300" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round"
+                          d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75"/>
+                </svg>
+            </div>
+            <p class="text-sm font-semibold text-slate-500">Sin gastos registrados</p>
+            <p class="text-xs mt-1">
+                {% if category_filter or date_from or date_to %}
+                    No hay gastos que coincidan con los filtros aplicados.
+                {% else %}
+                    Usa el botón "Registrar gasto" para empezar.
+                {% endif %}
+            </p>
+        </div>
+        {% endif %}
+    </div>
+
+</div>
+{% endblock %}

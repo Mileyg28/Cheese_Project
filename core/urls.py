@@ -17,10 +17,9 @@ urlpatterns = [
     path("sales/invoices/create/", views.create_sales_invoice, name="create_sales_invoice"),
     path("sales/invoices/<int:pk>/", views.sales_invoice_detail, name="sales_invoice_detail"),
     path("sales/invoices/<int:pk>/edit/", views.edit_sales_invoice, name="edit_sales_invoice"),
-    path(
-    "sales/invoices/<int:pk>/add-payment/",
-    views.add_sales_payment,
-    name="add_sales_payment",),
+    path("sales/invoices/<int:pk>/add-payment/",views.add_sales_payment,name="add_sales_payment",),
+    path("expenses/",views.expense_list,   name="expense_list"),
+    path("expenses/create/", views.create_expense, name="create_expense"),
     path("", views.home, name="home"),
     path("reporte/", views.period_report, name="period_report"),
 ]

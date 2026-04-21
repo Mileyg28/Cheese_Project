@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User, Group
 from django import forms
 
-from .models import Customer, Mensajero, Product, Supplier, SupplierProduct
+from .models import Customer, Expense, Mensajero, Motorcycle, Product, Supplier, SupplierProduct
 
 
 # ── Custom user creation form ──────────────────────────────────────────────────
@@ -173,3 +173,20 @@ class MensajeroAdmin(admin.ModelAdmin):
     list_filter = ("is_active",)
     search_fields = ("name", "phone")
     ordering = ("name",)
+
+#-------------GASTOS---------
+@admin.register(Motorcycle)
+class MotorcycleAdmin(admin.ModelAdmin):
+    list_display  = ("name", "plate", "is_active", "created_at")
+    list_filter   = ("is_active",)
+    search_fields = ("name", "plate")
+    ordering      = ("name",)
+ 
+ 
+@admin.register(Expense)
+class ExpenseAdmin(admin.ModelAdmin):
+    list_display   = ("category", "motorcycle", "expense_date", "amount", "description", "created_at")
+    list_filter    = ("category", "expense_date")
+    search_fields  = ("description", "motorcycle__name", "motorcycle__plate")
+    ordering       = ("-expense_date", "-id")
+    date_hierarchy = "expense_date"

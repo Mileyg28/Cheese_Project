@@ -754,3 +754,92 @@ class SalesPayment(TimeStampedModel):
         invoice = self.invoice
         super().delete(*args, **kwargs)
         invoice.update_totals()
+
+
+
+# ── Agregar estos modelos al final de models.py ──────────────────────────────
+
+
+# ── Agregar al final de models.py ────────────────────────────────────────────
+
+
+class Motorcycle(TimeStampedModel):
+    name      = models.CharField(max_length=100, verbose_name="Nombre / Referencia")
+    plate     = models.CharField(max_length=20, blank=True, verbose_name="Placa")
+    is_active = models.BooleanField(default=True, verbose_name="Activa")
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Moto"
+        verbose_name_plural = "Motos"
+
+    def __str__(self):
+        return f"{self.name}" + (f" ({self.plate})" if self.plate else "")
+
+
+class Expense(TimeStampedModel):
+    CAT_FUEL           = "fuel"
+    CAT_UTILITIES      = "utilities"
+    CAT_RENT           = "rent"
+    CAT_PAYROLL        = "payroll"
+    CAT_ADMINISTRATIVE = "administrative"
+    CAT_SUPPLIES       = "supplies"
+    CAT_UNIFORM        = "uniform"
+    CAT_OTHER          = "other"
+
+    CATEGORY_CHOICES = [
+        (CAT_FUEL,           "Gasolina"),
+        (CAT_UTILITIES,      "Servicios públicos"),
+        (CAT_RENT,           "Arriendo"),
+        (CAT_PAYROLL,        "Nómina"),
+        (CAT_ADMINISTRATIVE, "Gastos administrativos"),
+        (CAT_SUPPLIES,       "Insumos (bolsas, facturas, etc.)"),
+        (CAT_UNIFORM,        "Dotación"),
+        (CAT_OTHER,          "Otro"),
+    ]
+
+    category     = models.CharField(
+        max_length=30,
+        choices=CATEGORY_CHOICES,
+        verbose_name="Categoría",
+    )
+    motorcycle   = models.ForeignKey(
+        Motorcycle,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="expenses",
+        verbose_name="Moto",
+        help_text="Solo para gastos de gasolina.",
+    )
+    expense_date = models.DateField(default=timezone.localdate, verbose_name="Fecha")
+    amount       = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        verbose_name="Monto",
+    )
+    description  = models.TextField(blank=True, verbose_name="Descripción")
+
+    class Meta:
+        ordering = ["-expense_date", "-id"]
+        verbose_name = "Gasto"
+        verbose_name_plural = "Gastos"
+
+    def __str__(self):
+        label = dict(self.CATEGORY_CHOICES).get(self.category, self.category)
+        return f"{label} — ${self.amount} ({self.expense_date})"
+
+    def clean(self):
+        errors = {}
+        if self.amount is not None and self.amount <= 0:
+            errors["amount"] = "El monto debe ser mayor que cero."
+        if self.category == self.CAT_FUEL and not self.motorcycle_id:
+            errors["motorcycle"] = "Debes seleccionar la moto para gastos de gasolina."
+        if self.category != self.CAT_FUEL and self.motorcycle_id:
+            errors["motorcycle"] = "La moto solo aplica para gastos de gasolina."
+        if errors:
+            raise ValidationError(errors)
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        super().save(*args, **kwargs)

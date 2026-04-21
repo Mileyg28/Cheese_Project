@@ -41,6 +41,8 @@
 
                     {# Ventas: administrador y operario #}
                     <a href="{% url 'create_sales_invoice' %}" class="hover:text-emerald-300 transition">Nueva venta</a>
+                    {# Gastos: administrador y operario #}
+                    <a href="{% url 'create_expense' %}" class="hover:text-emerald-300 transition">Registrar Gastos</a>
 
                     {# Reportes: solo administrador #}
                     {% if request.user.is_superuser %}

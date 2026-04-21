@@ -2,7 +2,9 @@ from decimal import Decimal
 from django import forms
 
 from .models import (
+    Expense,
     Mensajero,
+    Motorcycle,
     PurchaseInvoice,
     PurchaseInvoiceItem,
     PurchasePayment,
@@ -270,3 +272,57 @@ class SalesPaymentForm(forms.ModelForm):
                 "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm focus:border-emerald-500 focus:outline-none transition resize-none",
             }),
         }
+#---------------GASTOS
+class ExpenseForm(forms.ModelForm):
+    class Meta:
+        model = Expense
+        fields = ["category", "motorcycle", "expense_date", "amount", "description"]
+        widgets = {
+            "category": forms.Select(attrs={
+                "id": "id_category",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
+            "motorcycle": forms.Select(attrs={
+                "id": "id_motorcycle",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
+            "expense_date": forms.DateInput(attrs={
+                "type": "date",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
+            "amount": forms.NumberInput(attrs={
+                "step": "1",
+                "min": "1",
+                "placeholder": "0",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
+            "description": forms.Textarea(attrs={
+                "rows": 3,
+                "placeholder": "Observaciones opcionales…",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition resize-none",
+            }),
+        }
+ 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["motorcycle"].queryset = Motorcycle.objects.filter(is_active=True)
+        self.fields["motorcycle"].required = False
+        self.fields["motorcycle"].empty_label = "— Selecciona una moto —"
+        self.fields["description"].required = False
+ 
+    def clean(self):
+        cleaned_data = super().clean()
+        category   = cleaned_data.get("category")
+        motorcycle = cleaned_data.get("motorcycle")
+ 
+        if category == Expense.CAT_FUEL and not motorcycle:
+            self.add_error("motorcycle", "Debes seleccionar la moto para gastos de gasolina.")
+        if category != Expense.CAT_FUEL and motorcycle:
+            self.add_error("motorcycle", "La moto solo aplica para gastos de gasolina.")
+ 
+        return cleaned_data
