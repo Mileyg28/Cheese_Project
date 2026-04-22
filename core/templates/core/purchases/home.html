@@ -1,6 +1,7 @@
 {% extends "core/purchases/base.html" %}
 {% load static %}
 {% load filters %}
+{% load static_v %}
 
 {% block title %}Inicio - Distribuidora de Quesos{% endblock %}
 
@@ -527,4 +528,5 @@
 <script>
        window.HOME_CONFIG = { isAdmin: {% if is_admin %}true{% else %}false{% endif %} };
    </script>
+   <script src="{% static_v 'core/js/home.js' %}"></script>
 {% endblock %}
