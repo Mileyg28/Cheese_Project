@@ -670,8 +670,8 @@ def period_report(request):
 #------------------GASTOS--------------
 @login_required
 def create_expense(request):
-    """Register a new expense. Administrators only."""
-    if not is_administrator(request.user):
+    """Register a new expense. Administrators and operators."""
+    if not is_operator_or_admin(request.user):
         raise PermissionDenied
  
     if request.method == "POST":
@@ -688,8 +688,8 @@ def create_expense(request):
  
 @login_required
 def expense_list(request):
-    """List of expenses with filters. Administrators only."""
-    if not is_administrator(request.user):
+    """Register a new expense. Administrators and operators."""
+    if not is_operator_or_admin(request.user):
         raise PermissionDenied
  
     import datetime
