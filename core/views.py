@@ -147,22 +147,27 @@ def home(request):
             .order_by("supplier_product__product__name")
         )
  
-        # 2. Ventas: traer todos los items con fecha para filtrar por producto
-        #    Solo limitamos por c_hasta; el límite inferior varía por producto.
+        # 2. Ventas: calcular bloques desde weight_kg / kg_per_block cuando
+        #    está disponible, para soportar medios bloques y fracciones.
+        #    Ej: 3.5 kg en producto de 7.5 kg/bloque = 0.47 bloques, no 1.
+        from django.db.models import Sum as _Sum
         sales_qs = SalesInvoiceItem.objects.values(
-            "product__id", "blocks", "invoice__invoice_date"
+            "product__id", "weight_kg", "blocks"
         )
+        if c_desde:
+            sales_qs = sales_qs.filter(invoice__invoice_date__gte=c_desde)
         if c_hasta:
             sales_qs = sales_qs.filter(invoice__invoice_date__lte=c_hasta)
  
-        # Agrupar ventas por producto con sus fechas
-        sales_by_product = _defaultdict(list)
-        for item in sales_qs:
-            if item["blocks"]:
-                sales_by_product[item["product__id"]].append({
-                    "blocks": item["blocks"],
-                    "date":   item["invoice__invoice_date"],
-                })
+        # Acumular peso total y bloques totales por producto
+        sales_weight_map = {}  # product_id -> Decimal de kg totales vendidos
+        sales_blocks_map = {}  # product_id -> int bloques (fallback sin kg_per_block)
+        for row in sales_qs:
+            pid_s = row["product__id"]
+            kg    = Decimal(str(row["weight_kg"] or 0))
+            blks  = row["blocks"] or 0
+            sales_weight_map[pid_s] = sales_weight_map.get(pid_s, Decimal("0")) + kg
+            sales_blocks_map[pid_s] = sales_blocks_map.get(pid_s, 0) + blks
  
         # 3. Construir contadores
         product_counters = []
@@ -172,7 +177,7 @@ def home(request):
             kg_per_block   = row["supplier_product__product__kg_per_block"]
             kilos          = row["total_kilos_comprados"] or Decimal("0.00")
             ingresados     = row["total_bloques_ingresados"]
-            primera_compra = row["primera_compra"]  # date de la 1ª compra en rango
+            primera_compra = row["primera_compra"]
  
             if ingresados:
                 comprados = Decimal(str(ingresados))
@@ -181,26 +186,29 @@ def home(request):
             else:
                 continue
  
-            # Solo contar ventas desde la fecha de la primera compra del rango
-            bloques_vendidos = sum(
-                s["blocks"]
-                for s in sales_by_product.get(pid, [])
-                if primera_compra and s["date"] >= primera_compra
-            )
+            # Calcular vendidos redondeando al 0.5 más cercano:
+            # 3.5 kg ÷ 7.5 kg/bl = 0.467 → 0.5 bl
+            # 3.5 + 3.5 = 7.0 kg → 0.5 + 0.5 = 1 bl exacto
+            total_kg_vendidos = sales_weight_map.get(pid, Decimal("0"))
+            if kg_per_block and kg_per_block > 0 and total_kg_vendidos > 0:
+                raw = float(total_kg_vendidos) / float(kg_per_block)
+                # Redondear al 0.5 más cercano: round(x * 2) / 2
+                vendidos = Decimal(str(round(raw * 2) / 2))
+            else:
+                # Fallback: usar el campo blocks cuando no hay kg_per_block
+                vendidos = Decimal(str(sales_blocks_map.get(pid, 0)))
  
-            vendidos  = Decimal(str(bloques_vendidos))
             restantes = comprados - vendidos
- 
             pct = min(int((vendidos / comprados) * 100), 100) if comprados > 0 else 0
  
             product_counters.append({
-                "name":          name,
-                "comprados":     int(comprados),
-                "vendidos":      int(vendidos),
-                "restantes":     int(restantes),
-                "pct":           pct,
-                "agotado":       restantes <= 0,
-                "stock_bajo":    pct >= 80 and restantes > 0,
+                "name":           name,
+                "comprados":      int(comprados),
+                "vendidos":       float(vendidos),   # puede ser 0.5, 1.0, 1.5, etc.
+                "restantes":      float(restantes),
+                "pct":            pct,
+                "agotado":        restantes <= 0,
+                "stock_bajo":     pct >= 80 and restantes > 0,
                 "primera_compra": primera_compra,
             })
  
