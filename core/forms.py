@@ -54,7 +54,7 @@ class PurchaseInvoiceForm(forms.ModelForm):
 class PurchaseInvoiceItemForm(forms.ModelForm):
     class Meta:
         model = PurchaseInvoiceItem
-        fields = ["supplier_product", "basket_quantity", "weight_kg"]
+        fields = ["supplier_product", "basket_quantity", "block_quantity", "weight_kg"]
         widgets = {
             "supplier_product": forms.Select(attrs={
                 "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
@@ -62,6 +62,12 @@ class PurchaseInvoiceItemForm(forms.ModelForm):
             "basket_quantity": forms.NumberInput(attrs={
                 "step": "0.01",
                 "min": "0",
+                "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
+            }),
+            "block_quantity": forms.NumberInput(attrs={
+                "step": "1",
+                "min": "0",
+                "placeholder": "0",
                 "class": "w-full rounded-xl border border-slate-300 px-3 py-2"
             }),
             "weight_kg": forms.NumberInput(attrs={
@@ -326,3 +332,4 @@ class ExpenseForm(forms.ModelForm):
             self.add_error("motorcycle", "La moto solo aplica para gastos de gasolina.")
  
         return cleaned_data
+        

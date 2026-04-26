@@ -110,6 +110,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const fieldWeightWrapper = document.getElementById("field-weight-kg");
     const fieldBasketWrapper = document.getElementById("field-basket-quantity");
+    const fieldBlockWrapper  = document.getElementById("field-block-quantity");
     const labelBasket        = document.getElementById("label-basket-quantity");
     const labelPricePerUnit  = document.getElementById("label-price-per-unit");
 
@@ -117,6 +118,7 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!product) {
             fieldWeightWrapper?.classList.remove("hidden");
             fieldBasketWrapper?.classList.remove("hidden");
+            fieldBlockWrapper?.classList.remove("hidden");
             if (labelBasket) labelBasket.textContent = "Total de canastas";
             if (labelPricePerUnit) labelPricePerUnit.textContent = "Valor por kilo";
             return;
@@ -125,9 +127,14 @@ document.addEventListener("DOMContentLoaded", () => {
         const isPerBlock = product.purchase_pricing_type === "per_block";
 
         if (isPerBlock) {
-            // Producto por bloque: ocultar kilos, mostrar solo bloques
+            // Producto por bloque: ocultar kilos y campo de bloques, mostrar solo canastas
             fieldWeightWrapper?.classList.add("hidden");
             fieldBasketWrapper?.classList.remove("hidden");
+            if (fieldBlockWrapper) {
+                fieldBlockWrapper.style.display = 'none';
+            }
+            const blockInput = document.getElementById("id_block_quantity");
+            if (blockInput) blockInput.disabled = true;
             if (weightField) weightField.value = "";
             if (labelBasket) labelBasket.textContent = "Cantidad de bloques";
             if (labelPricePerUnit) labelPricePerUnit.textContent = "Valor por bloque";
@@ -135,6 +142,11 @@ document.addEventListener("DOMContentLoaded", () => {
             // Producto por kilo: mostrar ambos campos
             fieldWeightWrapper?.classList.remove("hidden");
             fieldBasketWrapper?.classList.remove("hidden");
+            if (fieldBlockWrapper) {
+                fieldBlockWrapper.style.display = '';
+            }
+            const blockInput = document.getElementById("id_block_quantity");
+            if (blockInput) blockInput.disabled = false;
             if (labelBasket) labelBasket.textContent = "Total de canastas";
             if (labelPricePerUnit) labelPricePerUnit.textContent = "Valor por kilo";
         }

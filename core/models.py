@@ -348,6 +348,12 @@ class PurchaseInvoiceItem(TimeStampedModel):
         blank=True,
         default=Decimal("0.00"),
     )
+    block_quantity = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name="Cantidad de bloques",
+        help_text="Bloques reales recibidos en esta compra. Se usa para el inventario.",
+    )
     kilos_per_basket = models.DecimalField(
         max_digits=10,
         decimal_places=2,
@@ -405,6 +411,8 @@ class PurchaseInvoiceItem(TimeStampedModel):
 
         if self.basket_quantity is not None and self.basket_quantity < 0:
             errors["basket_quantity"] = "Basket quantity cannot be negative."
+        if self.block_quantity is not None and self.block_quantity < 0:
+            errors["block_quantity"] = "La cantidad de bloques no puede ser negativa."
 
         if self.weight_kg is not None and self.weight_kg < 0:
             errors["weight_kg"] = "Weight cannot be negative."

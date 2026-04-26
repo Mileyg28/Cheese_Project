@@ -98,16 +98,76 @@ def home(request):
     }
 
     if is_admin:
-        purchase_invoices = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
-        context.update({
-            "purchase_invoices": purchase_invoices,
-            "total_purchase_invoices": purchase_invoices.count(),
-            "total_purchased": purchase_invoices.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
-            "total_sold": sales_invoices.aggregate(total=Sum("total_amount")).get("total") or Decimal("0.00"),
-        })
-
-    return render(request, "core/purchases/home.html", context)
+        from .models import PurchaseInvoiceItem, SalesInvoiceItem
  
+        purchase_invoices = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
+ 
+        # ── Contador de inventario por producto ──────────────────────────────
+        # Bloques comprados: suma de block_quantity (ingresado manual) o kilos/kg_per_block
+        purchase_items = (
+            PurchaseInvoiceItem.objects
+            .values(
+                "supplier_product__product__id",
+                "supplier_product__product__name",
+                "supplier_product__product__kg_per_block",
+            )
+            .annotate(
+                total_kilos_comprados=Sum("total_kilos"),
+                total_bloques_ingresados=Sum("block_quantity"),
+            )
+            .order_by("supplier_product__product__name")
+        )
+ 
+        # Bloques vendidos por producto
+        sales_items = (
+            SalesInvoiceItem.objects
+            .values("product__id")
+            .annotate(bloques_vendidos=Sum("blocks"))
+        )
+        sales_map = {row["product__id"]: row["bloques_vendidos"] or 0 for row in sales_items}
+ 
+        product_counters = []
+        for row in purchase_items:
+            pid          = row["supplier_product__product__id"]
+            name         = row["supplier_product__product__name"]
+            kg_per_block = row["supplier_product__product__kg_per_block"]
+            kilos        = row["total_kilos_comprados"] or Decimal("0.00")
+            ingresados   = row["total_bloques_ingresados"]
+ 
+            # Prioridad: bloques ingresados manualmente > calculado desde kilos
+            if ingresados:
+                comprados = Decimal(str(ingresados))
+            elif kg_per_block and kg_per_block > 0:
+                comprados = kilos / Decimal(str(kg_per_block))
+            else:
+                continue  # sin datos suficientes para mostrar contador
+ 
+            vendidos   = Decimal(str(sales_map.get(pid, 0)))
+            restantes  = comprados - vendidos
+ 
+            if comprados > 0:
+                pct = min(int((vendidos / comprados) * 100), 100)
+            else:
+                pct = 0
+ 
+            product_counters.append({
+                "name":       name,
+                "comprados":  int(comprados),
+                "vendidos":   int(vendidos),
+                "restantes":  int(restantes),
+                "pct":        pct,
+                "agotado":    restantes <= 0,
+                "stock_bajo": pct >= 80 and restantes > 0,
+            })
+ 
+        context.update({
+            "purchase_invoices":       purchase_invoices,
+            "total_purchase_invoices": purchase_invoices.count(),
+            "total_sales_invoices":    sales_invoices.count(),
+            "product_counters":        product_counters,
+        })
+ 
+    return render(request, "core/purchases/home.html", context)
 
 # ── Purchases (administrator only) ────────────────────────────────────────────
 

@@ -18,15 +18,56 @@
         <p class="text-xs font-semibold uppercase tracking-widest text-slate-400 mb-2">Facturas de venta</p>
         <p class="text-3xl font-extrabold text-slate-800">{{ total_sales_invoices }}</p>
     </div>
-    <div class="bg-emerald-50 rounded-2xl border border-emerald-200 shadow-sm px-5 py-4">
-        <p class="text-xs font-semibold uppercase tracking-widest text-emerald-600 mb-2">Total comprado</p>
-        <p class="text-3xl font-extrabold text-emerald-700">${{ total_purchased|floatformat:0 }}</p>
-    </div>
-    <div class="bg-blue-50 rounded-2xl border border-blue-200 shadow-sm px-5 py-4">
-        <p class="text-xs font-semibold uppercase tracking-widest text-blue-600 mb-2">Total vendido</p>
-        <p class="text-3xl font-extrabold text-blue-700">${{ total_sold|floatformat:0 }}</p>
-    </div>
 </div>
+
+ 
+{# Contadores de inventario por producto #}
+{% if product_counters %}
+<div class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
+    {% for p in product_counters %}
+    <div class="rounded-2xl border shadow-sm px-4 py-4
+        {% if p.agotado %}bg-red-50 border-red-300
+        {% elif p.stock_bajo %}bg-amber-50 border-amber-300
+        {% else %}bg-white border-slate-200{% endif %}">
+ 
+        {# Nombre + badge de estado #}
+        <div class="flex items-start justify-between mb-2 gap-1">
+            <p class="text-xs font-bold text-slate-700 leading-tight">{{ p.name }}</p>
+            {% if p.agotado %}
+                <span class="shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">Agotado</span>
+            {% elif p.stock_bajo %}
+                <span class="shrink-0 text-xs font-semibold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Bajo</span>
+            {% endif %}
+        </div>
+ 
+        {# Número grande: bloques restantes #}
+        <p class="text-4xl font-extrabold leading-none mb-1
+            {% if p.agotado %}text-red-600
+            {% elif p.stock_bajo %}text-amber-600
+            {% else %}text-emerald-600{% endif %}">
+            {{ p.restantes }}
+        </p>
+        <p class="text-xs text-slate-400 mb-3">bloques disponibles</p>
+ 
+        {# Barra de progreso (% vendido) #}
+        <div class="w-full bg-slate-100 rounded-full h-1.5 mb-2">
+            <div class="h-1.5 rounded-full transition-all
+                {% if p.pct >= 100 %}bg-red-500
+                {% elif p.stock_bajo %}bg-amber-400
+                {% else %}bg-emerald-500{% endif %}"
+                 style="width: {{ p.pct }}%"></div>
+        </div>
+ 
+        {# Detalle comprados vs vendidos #}
+        <div class="flex justify-between text-xs text-slate-400">
+            <span>Comprados: <strong class="text-slate-600">{{ p.comprados }}</strong></span>
+            <span>Vendidos: <strong class="text-slate-600">{{ p.vendidos }}</strong></span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
 {% else %}
 <div class="mb-6">
     <div class="bg-blue-50 rounded-2xl border border-blue-200 shadow-sm px-5 py-4 max-w-xs">

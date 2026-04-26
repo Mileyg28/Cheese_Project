@@ -60,6 +60,7 @@
                     <tr class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50">
                         <th class="px-5 py-3 text-left whitespace-nowrap">Producto</th>
                         <th class="px-5 py-3 text-right whitespace-nowrap">Canastas</th>
+                        <th class="px-5 py-3 text-right whitespace-nowrap">Bloques</th>
                         <th class="px-5 py-3 text-right whitespace-nowrap">Kilos</th>
                         <th class="px-5 py-3 text-right whitespace-nowrap">Precio / kg</th>
                         <th class="px-5 py-3 text-right whitespace-nowrap">Total línea</th>
@@ -71,6 +72,9 @@
                         <td class="px-5 py-3.5 font-medium text-slate-800 whitespace-nowrap">{{ item.supplier_product.product.name }}</td>
                         <td class="px-5 py-3.5 text-right text-slate-600 whitespace-nowrap">
                             {% if item.basket_quantity %}{{ item.basket_quantity|floatformat:0 }}{% else %}<span class="text-slate-300">—</span>{% endif %}
+                        </td>
+                        <td class="px-5 py-3.5 text-right text-slate-600 whitespace-nowrap">
+                            {% if item.block_quantity %}{{ item.block_quantity }}{% else %}<span class="text-slate-300">—</span>{% endif %}
                         </td>
                         <td class="px-5 py-3.5 text-right text-slate-600 whitespace-nowrap">
                             {{ item.total_kilos|floatformat:1 }} kg

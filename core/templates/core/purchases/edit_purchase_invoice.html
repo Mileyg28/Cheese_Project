@@ -113,6 +113,15 @@
                     {% if item_form.basket_quantity.errors %}<p class="text-sm text-red-600 mt-1">{{ item_form.basket_quantity.errors.0 }}</p>{% endif %}
                 </div>
 
+                {# ── NUEVO: bloques reales recibidos, para el inventario ── #}
+                <div>
+                    <label for="{{ item_form.block_quantity.id_for_label }}" ...>
+                        Cantidad de bloques <span>(opcional)</span>
+                    </label>
+                    {{ item_form.block_quantity }}
+                    <p>Útil cuando las canastas no vienen completas.</p>
+                </div>
+
                 <div id="field-weight-kg">
                     <label for="{{ item_form.weight_kg.id_for_label }}" class="block text-sm font-medium text-slate-700 mb-1">Kilos totales</label>
                     {{ item_form.weight_kg }}
