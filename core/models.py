@@ -436,8 +436,15 @@ class PurchaseInvoiceItem(TimeStampedModel):
         self.unit_price = (
             self.supplier_product.default_purchase_price or Decimal("0.00")
         )
-        self.total_kilos = self.calculate_total_kilos()
-        self.line_total = self.total_kilos * self.unit_price
+
+        pricing_type = self.supplier_product.product.purchase_pricing_type  # "per_block" o "per_kilo"
+
+        if pricing_type == Product.PRICE_TYPE_PER_BLOCK:  # "per_block"
+            self.total_kilos = Decimal("0.00")
+            self.line_total = Decimal(self.block_quantity or 0) * self.unit_price
+        else:  # "per_kg"
+            self.total_kilos = self.calculate_total_kilos()
+            self.line_total = self.total_kilos * self.unit_price
 
         super().save(*args, **kwargs)
         self.invoice.update_totals()

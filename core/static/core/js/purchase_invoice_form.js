@@ -125,27 +125,26 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const isPerBlock = product.purchase_pricing_type === "per_block";
+        const blockInput = document.getElementById("id_block_quantity");
+        const basketInput = document.getElementById("id_basket_quantity");
 
         if (isPerBlock) {
-            // Producto por bloque: ocultar kilos y campo de bloques, mostrar solo canastas
+            // Solo mostrar block_quantity, ocultar el resto
             fieldWeightWrapper?.classList.add("hidden");
-            fieldBasketWrapper?.classList.remove("hidden");
-            if (fieldBlockWrapper) {
-                fieldBlockWrapper.style.display = 'none';
-            }
-            const blockInput = document.getElementById("id_block_quantity");
-            if (blockInput) blockInput.disabled = true;
-            if (weightField) weightField.value = "";
-            if (labelBasket) labelBasket.textContent = "Cantidad de bloques";
+            fieldBasketWrapper?.classList.add("hidden");      // ← ocultar canastas
+            fieldBlockWrapper?.classList.remove("hidden");    // ← mostrar bloques directamente
+
+            if (blockInput) blockInput.disabled = false;      // ← NO deshabilitar
+            if (weightField) weightField.value = "0";
+            if (basketInput) basketInput.value = "0";
+
             if (labelPricePerUnit) labelPricePerUnit.textContent = "Valor por bloque";
         } else {
-            // Producto por kilo: mostrar ambos campos
+            // Mostrar todo: kilos, canastas y bloques
             fieldWeightWrapper?.classList.remove("hidden");
             fieldBasketWrapper?.classList.remove("hidden");
-            if (fieldBlockWrapper) {
-                fieldBlockWrapper.style.display = '';
-            }
-            const blockInput = document.getElementById("id_block_quantity");
+            fieldBlockWrapper?.classList.remove("hidden");
+
             if (blockInput) blockInput.disabled = false;
             if (labelBasket) labelBasket.textContent = "Total de canastas";
             if (labelPricePerUnit) labelPricePerUnit.textContent = "Valor por kilo";
@@ -165,10 +164,11 @@ document.addEventListener("DOMContentLoaded", () => {
             const isPerBlock = product.purchase_pricing_type === "per_block";
 
             if (isPerBlock) {
-                const baskets = parseFloat(
-                    document.getElementById("id_basket_quantity")?.value || 0
+                // Usar directamente block_quantity
+                const blocks = parseFloat(
+                    document.getElementById("id_block_quantity")?.value || 0
                 );
-                subtotal = baskets * pricePerUnit;
+                subtotal = blocks * pricePerUnit;
             } else {
                 const weight = parseFloat(weightField.value || 0);
                 subtotal = weight * pricePerUnit;
@@ -176,7 +176,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         const totalInvoice = subtotal + freight;
-
         pricePerKiloField.textContent = formatCurrency(pricePerUnit);
         subtotalField.textContent = formatCurrency(subtotal);
         totalInvoiceField.textContent = formatCurrency(totalInvoice);
@@ -244,6 +243,12 @@ document.addEventListener("DOMContentLoaded", () => {
     const basketField = document.getElementById("id_basket_quantity");
     if (basketField) {
         basketField.addEventListener("input", calculateTotals);
+    }
+
+    // Agregar junto a los otros listeners al final del archivo
+    const blockField = document.getElementById("id_block_quantity");
+    if (blockField) {
+        blockField.addEventListener("input", calculateTotals);
     }
 
     // Aplicar el formato de pesos al campo de flete
