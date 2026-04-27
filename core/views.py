@@ -99,10 +99,9 @@ def home(request):
 
     if is_admin:
         import datetime as _dt
-        from collections import defaultdict as _defaultdict
-        from django.db.models import Min
+        from django.db.models import Min, Sum as _Sum
         from .models import PurchaseInvoiceItem, SalesInvoiceItem
- 
+
         # ── Leer filtros de fecha desde GET ──────────────────────────────────
         c_desde_raw = request.GET.get("c_desde", "")
         c_hasta_raw = request.GET.get("c_hasta", "")
@@ -114,22 +113,22 @@ def home(request):
             c_hasta = _dt.date.fromisoformat(c_hasta_raw)
         except (ValueError, TypeError):
             c_hasta = None
- 
+
         # ── Facturas de compra filtradas por fecha para la tabla ──────────────
         purchase_invoices = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
         if c_desde:
             purchase_invoices = purchase_invoices.filter(invoice_date__gte=c_desde)
         if c_hasta:
             purchase_invoices = purchase_invoices.filter(invoice_date__lte=c_hasta)
- 
+
         # ── Contador de inventario por producto ───────────────────────────────
-        # 1. Compras en el rango: suma de bloques/kilos + fecha mínima de compra
+        # 1. Compras en el rango
         purchase_qs = PurchaseInvoiceItem.objects
         if c_desde:
             purchase_qs = purchase_qs.filter(invoice__invoice_date__gte=c_desde)
         if c_hasta:
             purchase_qs = purchase_qs.filter(invoice__invoice_date__lte=c_hasta)
- 
+
         purchase_items = (
             purchase_qs
             .values(
@@ -140,35 +139,27 @@ def home(request):
             .annotate(
                 total_kilos_comprados=Sum("total_kilos"),
                 total_bloques_ingresados=Sum("block_quantity"),
-                # Fecha de la primera compra en el rango → las ventas solo
-                # se cuentan desde este día (no se cuentan ventas anteriores)
                 primera_compra=Min("invoice__invoice_date"),
             )
             .order_by("supplier_product__product__name")
         )
- 
-        # 2. Ventas: calcular bloques desde weight_kg / kg_per_block cuando
-        #    está disponible, para soportar medios bloques y fracciones.
-        #    Ej: 3.5 kg en producto de 7.5 kg/bloque = 0.47 bloques, no 1.
-        from django.db.models import Sum as _Sum
-        sales_qs = SalesInvoiceItem.objects.values(
-            "product__id", "weight_kg", "blocks"
+
+        # 2. Ventas: sumar el campo blocks directamente por producto y rango
+        sales_qs = (
+            SalesInvoiceItem.objects
+            .values("product__id")
+            .annotate(total_blocks=_Sum("blocks"))
         )
         if c_desde:
             sales_qs = sales_qs.filter(invoice__invoice_date__gte=c_desde)
         if c_hasta:
             sales_qs = sales_qs.filter(invoice__invoice_date__lte=c_hasta)
- 
-        # Acumular peso total y bloques totales por producto
-        sales_weight_map = {}  # product_id -> Decimal de kg totales vendidos
-        sales_blocks_map = {}  # product_id -> int bloques (fallback sin kg_per_block)
-        for row in sales_qs:
-            pid_s = row["product__id"]
-            kg    = Decimal(str(row["weight_kg"] or 0))
-            blks  = row["blocks"] or 0
-            sales_weight_map[pid_s] = sales_weight_map.get(pid_s, Decimal("0")) + kg
-            sales_blocks_map[pid_s] = sales_blocks_map.get(pid_s, 0) + blks
- 
+
+        sales_blocks_map = {
+            row["product__id"]: Decimal(str(row["total_blocks"] or 0))
+            for row in sales_qs
+        }
+
         # 3. Construir contadores
         product_counters = []
         for row in purchase_items:
@@ -178,40 +169,29 @@ def home(request):
             kilos          = row["total_kilos_comprados"] or Decimal("0.00")
             ingresados     = row["total_bloques_ingresados"]
             primera_compra = row["primera_compra"]
- 
+
             if ingresados:
                 comprados = Decimal(str(ingresados))
             elif kg_per_block and kg_per_block > 0:
                 comprados = kilos / Decimal(str(kg_per_block))
             else:
                 continue
- 
-            # Calcular vendidos redondeando al 0.5 más cercano:
-            # 3.5 kg ÷ 7.5 kg/bl = 0.467 → 0.5 bl
-            # 3.5 + 3.5 = 7.0 kg → 0.5 + 0.5 = 1 bl exacto
-            total_kg_vendidos = sales_weight_map.get(pid, Decimal("0"))
-            if kg_per_block and kg_per_block > 0 and total_kg_vendidos > 0:
-                raw = float(total_kg_vendidos) / float(kg_per_block)
-                # Redondear al 0.5 más cercano: round(x * 2) / 2
-                vendidos = Decimal(str(round(raw * 2) / 2))
-            else:
-                # Fallback: usar el campo blocks cuando no hay kg_per_block
-                vendidos = Decimal(str(sales_blocks_map.get(pid, 0)))
- 
+
+            vendidos  = sales_blocks_map.get(pid, Decimal("0"))
             restantes = comprados - vendidos
             pct = min(int((vendidos / comprados) * 100), 100) if comprados > 0 else 0
- 
+
             product_counters.append({
                 "name":           name,
                 "comprados":      int(comprados),
-                "vendidos":       float(vendidos),   # puede ser 0.5, 1.0, 1.5, etc.
+                "vendidos":       float(vendidos),
                 "restantes":      float(restantes),
                 "pct":            pct,
                 "agotado":        restantes <= 0,
                 "stock_bajo":     pct >= 80 and restantes > 0,
                 "primera_compra": primera_compra,
             })
- 
+
         context.update({
             "purchase_invoices":       purchase_invoices,
             "total_purchase_invoices": purchase_invoices.count(),
@@ -220,7 +200,7 @@ def home(request):
             "c_desde":                 c_desde_raw,
             "c_hasta":                 c_hasta_raw,
         })
- 
+
     return render(request, "core/purchases/home.html", context)
 
 # ── Purchases (administrator only) ────────────────────────────────────────────
