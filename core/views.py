@@ -99,7 +99,7 @@ def home(request):
 
     if is_admin:
         import datetime as _dt
-        from django.db.models import Min, Sum as _Sum
+        from django.db.models import Max, Sum as _Sum
         from .models import PurchaseInvoiceItem, SalesInvoiceItem
 
         # ── Leer filtros de fecha desde GET ──────────────────────────────────
@@ -122,53 +122,42 @@ def home(request):
             purchase_invoices = purchase_invoices.filter(invoice_date__lte=c_hasta)
 
         # ── Contador de inventario por producto ───────────────────────────────
-        # 1. Compras en el rango
-        purchase_qs = PurchaseInvoiceItem.objects
-        if c_desde:
-            purchase_qs = purchase_qs.filter(invoice__invoice_date__gte=c_desde)
-        if c_hasta:
-            purchase_qs = purchase_qs.filter(invoice__invoice_date__lte=c_hasta)
+        # ── Contador de inventario por producto (rango individual por producto) ──
+        from django.db.models import Max
 
-        purchase_items = (
-            purchase_qs
+        today = timezone.localdate()
+
+        # 1. Obtener la última fecha de compra de cada producto
+        products_with_purchases = (
+            PurchaseInvoiceItem.objects
             .values(
                 "supplier_product__product__id",
                 "supplier_product__product__name",
                 "supplier_product__product__kg_per_block",
             )
-            .annotate(
-                total_kilos_comprados=Sum("total_kilos"),
-                total_bloques_ingresados=Sum("block_quantity"),
-                primera_compra=Min("invoice__invoice_date"),
-            )
+            .annotate(ultima_compra=Max("invoice__invoice_date"))
             .order_by("supplier_product__product__name")
         )
 
-        # 2. Ventas: sumar el campo blocks directamente por producto y rango
-        sales_qs = (
-            SalesInvoiceItem.objects
-            .values("product__id")
-            .annotate(total_blocks=_Sum("blocks"))
-        )
-        if c_desde:
-            sales_qs = sales_qs.filter(invoice__invoice_date__gte=c_desde)
-        if c_hasta:
-            sales_qs = sales_qs.filter(invoice__invoice_date__lte=c_hasta)
-
-        sales_blocks_map = {
-            row["product__id"]: Decimal(str(row["total_blocks"] or 0))
-            for row in sales_qs
-        }
-
-        # 3. Construir contadores
         product_counters = []
-        for row in purchase_items:
-            pid            = row["supplier_product__product__id"]
-            name           = row["supplier_product__product__name"]
-            kg_per_block   = row["supplier_product__product__kg_per_block"]
-            kilos          = row["total_kilos_comprados"] or Decimal("0.00")
-            ingresados     = row["total_bloques_ingresados"]
-            primera_compra = row["primera_compra"]
+        for row in products_with_purchases:
+            pid           = row["supplier_product__product__id"]
+            name          = row["supplier_product__product__name"]
+            kg_per_block  = row["supplier_product__product__kg_per_block"]
+            ultima_compra = row["ultima_compra"]  # inicio individual por producto
+
+            # 2. Bloques comprados desde la última compra hasta hoy
+            purchase_agg = PurchaseInvoiceItem.objects.filter(
+                supplier_product__product__id=pid,
+                invoice__invoice_date__gte=ultima_compra,
+                invoice__invoice_date__lte=today,
+            ).aggregate(
+                total_kilos=_Sum("total_kilos"),
+                total_blocks=_Sum("block_quantity"),
+            )
+
+            kilos      = purchase_agg["total_kilos"] or Decimal("0.00")
+            ingresados = purchase_agg["total_blocks"]
 
             if ingresados:
                 comprados = Decimal(str(ingresados))
@@ -177,7 +166,14 @@ def home(request):
             else:
                 continue
 
-            vendidos  = sales_blocks_map.get(pid, Decimal("0"))
+            # 3. Bloques vendidos desde la última compra hasta hoy
+            sales_agg = SalesInvoiceItem.objects.filter(
+                product__id=pid,
+                invoice__invoice_date__gte=ultima_compra,
+                invoice__invoice_date__lte=today,
+            ).aggregate(total_blocks=_Sum("blocks"))
+
+            vendidos  = Decimal(str(sales_agg["total_blocks"] or 0))
             restantes = comprados - vendidos
             pct = min(int((vendidos / comprados) * 100), 100) if comprados > 0 else 0
 
@@ -189,7 +185,7 @@ def home(request):
                 "pct":            pct,
                 "agotado":        restantes <= 0,
                 "stock_bajo":     pct >= 80 and restantes > 0,
-                "primera_compra": primera_compra,
+                "primera_compra": ultima_compra,
             })
 
         context.update({
