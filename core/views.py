@@ -123,11 +123,12 @@ def home(request):
 
         # ── Contador de inventario por producto ───────────────────────────────
         # ── Contador de inventario por producto (rango individual por producto) ──
+        # ── Contador de inventario por producto ──────────────────────────────
         from django.db.models import Max
 
         today = timezone.localdate()
 
-        # 1. Obtener la última fecha de compra de cada producto
+        # Fechas de las dos últimas compras por producto
         products_with_purchases = (
             PurchaseInvoiceItem.objects
             .values(
@@ -144,43 +145,83 @@ def home(request):
             pid           = row["supplier_product__product__id"]
             name          = row["supplier_product__product__name"]
             kg_per_block  = row["supplier_product__product__kg_per_block"]
-            ultima_compra = row["ultima_compra"]  # inicio individual por producto
+            ultima_compra = row["ultima_compra"]
 
-            # 2. Bloques comprados desde la última compra hasta hoy
-            purchase_agg = PurchaseInvoiceItem.objects.filter(
+            def to_bloques(kilos):
+                if kg_per_block and kg_per_block > 0:
+                    return kilos / Decimal(str(kg_per_block))
+                return Decimal("0")
+
+            # ── Penúltima fecha de compra (la inmediatamente anterior) ───────
+            penultima_compra = (
+                PurchaseInvoiceItem.objects
+                .filter(
+                    supplier_product__product__id=pid,
+                    invoice__invoice_date__lt=ultima_compra,
+                )
+                .aggregate(fecha=Max("invoice__invoice_date"))["fecha"]
+            )
+
+            # ── Bloques de la última compra ──────────────────────────────────
+            agg_actual = PurchaseInvoiceItem.objects.filter(
                 supplier_product__product__id=pid,
                 invoice__invoice_date__gte=ultima_compra,
-                invoice__invoice_date__lte=today,
             ).aggregate(
                 total_kilos=_Sum("total_kilos"),
                 total_blocks=_Sum("block_quantity"),
             )
-
-            kilos      = purchase_agg["total_kilos"] or Decimal("0.00")
-            ingresados = purchase_agg["total_blocks"]
-
-            if ingresados:
-                comprados = Decimal(str(ingresados))
+            blocks_actual = agg_actual["total_blocks"]
+            if blocks_actual:
+                comprados_actual = Decimal(str(blocks_actual))
             elif kg_per_block and kg_per_block > 0:
-                comprados = kilos / Decimal(str(kg_per_block))
+                comprados_actual = to_bloques(agg_actual["total_kilos"] or Decimal("0"))
             else:
                 continue
 
-            # 3. Bloques vendidos desde la última compra hasta hoy
-            sales_agg = SalesInvoiceItem.objects.filter(
-                product__id=pid,
-                invoice__invoice_date__gte=ultima_compra,
-                invoice__invoice_date__lte=today,
-            ).aggregate(total_blocks=_Sum("blocks"))
+            # ── Saldo de la compra anterior (solo si existe penúltima) ────────
+            saldo_anterior = Decimal("0")
+            if penultima_compra:
+                agg_pen = PurchaseInvoiceItem.objects.filter(
+                    supplier_product__product__id=pid,
+                    invoice__invoice_date__gte=penultima_compra,
+                    invoice__invoice_date__lt=ultima_compra,
+                ).aggregate(
+                    total_kilos=_Sum("total_kilos"),
+                    total_blocks=_Sum("block_quantity"),
+                )
+                blocks_pen = agg_pen["total_blocks"]
+                if blocks_pen:
+                    comprados_pen = Decimal(str(blocks_pen))
+                else:
+                    comprados_pen = to_bloques(agg_pen["total_kilos"] or Decimal("0"))
 
-            vendidos  = Decimal(str(sales_agg["total_blocks"] or 0))
-            restantes = comprados - vendidos
-            pct = min(int((vendidos / comprados) * 100), 100) if comprados > 0 else 0
+                ventas_pen = Decimal(str(
+                    SalesInvoiceItem.objects.filter(
+                        product__id=pid,
+                        invoice__invoice_date__gte=penultima_compra,
+                        invoice__invoice_date__lt=ultima_compra,
+                    ).aggregate(t=_Sum("blocks"))["t"] or 0
+                ))
+
+                saldo_anterior = max(comprados_pen - ventas_pen, Decimal("0"))
+
+            # ── Ventas desde la última compra hasta hoy ──────────────────────
+            ventas_actual = Decimal(str(
+                SalesInvoiceItem.objects.filter(
+                    product__id=pid,
+                    invoice__invoice_date__gte=ultima_compra,
+                ).aggregate(t=_Sum("blocks"))["t"] or 0
+            ))
+
+            total_disponible = comprados_actual + saldo_anterior
+            restantes = total_disponible - ventas_actual
+            pct = min(int((ventas_actual / total_disponible) * 100), 100) if total_disponible > 0 else 0
 
             product_counters.append({
                 "name":           name,
-                "comprados":      int(comprados),
-                "vendidos":       float(vendidos),
+                "comprados":      int(comprados_actual),
+                "saldo_anterior": float(saldo_anterior),
+                "vendidos":       float(ventas_actual),
                 "restantes":      float(restantes),
                 "pct":            pct,
                 "agotado":        restantes <= 0,
