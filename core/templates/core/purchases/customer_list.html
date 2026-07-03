@@ -1,0 +1,135 @@
+{% extends "core/purchases/base.html" %}
+{% load static %}
+
+{% block title %}Clientes{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto px-4 py-6 space-y-5">
+
+    <div class="flex items-center gap-2 text-xs text-slate-400">
+        <a href="{% url 'home' %}" class="hover:text-slate-600 transition font-medium">Inicio</a>
+        <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5"/>
+        </svg>
+        <span class="text-slate-600 font-medium">Clientes</span>
+    </div>
+
+    <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <h1 class="text-lg font-bold text-slate-800">Clientes</h1>
+            <span id="save-indicator" class="text-xs font-medium text-emerald-600 opacity-0 transition-opacity">
+                Guardado ✓
+            </span>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+                <thead>
+                    <tr class="text-xs font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50">
+                        <th class="px-5 py-3 text-left whitespace-nowrap">Nombre</th>
+                        <th class="px-5 py-3 text-left whitespace-nowrap">Teléfono</th>
+                        <th class="px-5 py-3 text-left whitespace-nowrap">Dirección</th>
+                        <th class="px-5 py-3 text-left whitespace-nowrap">Barrio</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for customer in customers %}
+                    <tr class="hover:bg-slate-50 transition" data-customer-id="{{ customer.pk }}">
+                        <td class="px-5 py-3 font-medium text-slate-800 whitespace-nowrap">
+                            {{ customer.name }}
+                        </td>
+                        <td class="px-5 py-3 text-slate-600 whitespace-nowrap">
+                            {% if customer.phone %}{{ customer.phone }}{% else %}<span class="text-slate-300">—</span>{% endif %}
+                        </td>
+                        <td class="px-5 py-3 text-slate-600">
+                            <span class="editable-field inline-block min-w-[8rem] px-2 py-1 rounded-lg cursor-text hover:bg-amber-50 focus:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                  contenteditable="true"
+                                  data-field="address"
+                                  data-customer-id="{{ customer.pk }}">{{ customer.address }}</span>
+                        </td>
+                        <td class="px-5 py-3 text-slate-600">
+                            <span class="editable-field inline-block min-w-[8rem] px-2 py-1 rounded-lg cursor-text hover:bg-amber-50 focus:bg-amber-50 focus:outline-none focus:ring-2 focus:ring-amber-400"
+                                  contenteditable="true"
+                                  data-field="neighborhood"
+                                  data-customer-id="{{ customer.pk }}">{{ customer.neighborhood }}</span>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-5 py-8 text-center text-slate-400 text-sm">
+                            No hay clientes registrados.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <p class="px-5 py-3 text-xs text-slate-400 border-t border-slate-100">
+            Haz clic sobre la dirección o el barrio para editarlos. Se guardan automáticamente al salir del campo.
+        </p>
+    </div>
+</div>
+
+{% csrf_token %}
+
+<script>
+function getCookie(name) {
+    const value = `; ${document.cookie}`;
+    const parts = value.split(`; ${name}=`);
+    if (parts.length === 2) return parts.pop().split(';').shift();
+}
+const csrftoken = getCookie('csrftoken');
+
+document.querySelectorAll('.editable-field').forEach(el => {
+    let originalValue = el.textContent.trim();
+
+    el.addEventListener('focus', () => {
+        originalValue = el.textContent.trim();
+    });
+
+    el.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            el.blur();
+        }
+        if (e.key === 'Escape') {
+            el.textContent = originalValue;
+            el.blur();
+        }
+    });
+
+    el.addEventListener('blur', () => {
+        const newValue = el.textContent.trim();
+        if (newValue === originalValue) return;
+
+        const customerId = el.dataset.customerId;
+        const field = el.dataset.field;
+
+        fetch(`/clientes/${customerId}/actualizar-campo/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrftoken,
+                'Content-Type': 'application/x-www-form-urlencoded',
+            },
+            body: `field=${encodeURIComponent(field)}&value=${encodeURIComponent(newValue)}`,
+        })
+        .then(res => res.json())
+        .then(data => {
+            if (data.success) {
+                originalValue = newValue;
+                const indicator = document.getElementById('save-indicator');
+                indicator.classList.remove('opacity-0');
+                setTimeout(() => indicator.classList.add('opacity-0'), 1200);
+            } else {
+                el.textContent = originalValue;
+                alert(data.error || 'No se pudo guardar el cambio.');
+            }
+        })
+        .catch(() => {
+            el.textContent = originalValue;
+            alert('Error de conexión al guardar.');
+        });
+    });
+});
+</script>
+{% endblock %}

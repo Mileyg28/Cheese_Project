@@ -132,6 +132,12 @@
                         </div>
                     </div>
 
+                    {# ── Clientes ── #}
+                    <a href="{% url 'customer_list' %}"
+                       class="px-3 py-2 rounded hover:text-emerald-300 hover:bg-white/5 transition">
+                        Clientes
+                    </a>
+
                     {# ── Admin Django: solo superusuario ── #}
                     {% if request.user.is_superuser %}
                         <a href="/admin/"

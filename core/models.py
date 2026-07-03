@@ -792,6 +792,8 @@ class Motorcycle(TimeStampedModel):
         return f"{self.name}" + (f" ({self.plate})" if self.plate else "")
 
 
+IVA_RATE = Decimal("0.19")  
+
 class Expense(TimeStampedModel):
     CAT_FUEL           = "fuel"
     CAT_UTILITIES      = "utilities"
@@ -813,6 +815,17 @@ class Expense(TimeStampedModel):
         (CAT_OTHER,          "Otro"),
     ]
 
+
+    # NUEVO: proveedor del gasto (opcional para mantener compatibilidad)
+    provider = models.ForeignKey(
+        "ExpenseProvider",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="expenses",
+        verbose_name="Proveedor",
+    )
+
     category     = models.CharField(
         max_length=30,
         choices=CATEGORY_CHOICES,
@@ -828,9 +841,21 @@ class Expense(TimeStampedModel):
         help_text="Solo para gastos de gasolina.",
     )
     expense_date = models.DateField(default=timezone.localdate, verbose_name="Fecha")
+    # NUEVO: desglose con/sin IVA
+    subtotal = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal("0.00"),
+        verbose_name="Valor base (sin IVA)",
+    )
+    applies_iva = models.BooleanField(default=False, verbose_name="Aplica IVA (19%)")
+    iva_amount = models.DecimalField(
+        max_digits=14, decimal_places=2, default=Decimal("0.00"),
+        verbose_name="Valor IVA",
+    )
+
     amount       = models.DecimalField(
         max_digits=14,
         decimal_places=2,
+        default=Decimal("0.00"),
         verbose_name="Monto",
     )
     description  = models.TextField(blank=True, verbose_name="Descripción")
@@ -844,10 +869,18 @@ class Expense(TimeStampedModel):
         label = dict(self.CATEGORY_CHOICES).get(self.category, self.category)
         return f"{label} — ${self.amount} ({self.expense_date})"
 
+    def _recalculate_totals(self):
+        sub = self.subtotal or Decimal("0.00")
+        if self.applies_iva:
+            self.iva_amount = (sub * IVA_RATE).quantize(Decimal("0.01"))
+        else:
+            self.iva_amount = Decimal("0.00")
+        self.amount = sub + self.iva_amount
+
     def clean(self):
         errors = {}
-        if self.amount is not None and self.amount <= 0:
-            errors["amount"] = "El monto debe ser mayor que cero."
+        if self.subtotal is None or self.subtotal <= 0:
+            errors["subtotal"] = "El valor base debe ser mayor que cero."
         if self.category == self.CAT_FUEL and not self.motorcycle_id:
             errors["motorcycle"] = "Debes seleccionar la moto para gastos de gasolina."
         if self.category != self.CAT_FUEL and self.motorcycle_id:
@@ -856,5 +889,28 @@ class Expense(TimeStampedModel):
             raise ValidationError(errors)
 
     def save(self, *args, **kwargs):
+        self._recalculate_totals()
         self.full_clean()
         super().save(*args, **kwargs)
+
+# ── Proveedores de gastos ─────────────────────────────────────────────────────
+
+class ExpenseProvider(TimeStampedModel):
+    name = models.CharField(max_length=200, verbose_name="Razón social")
+    nit = models.CharField(
+        max_length=30,
+        unique=True,
+        verbose_name="NIT / Documento",
+    )
+    address = models.CharField(max_length=255, blank=True, verbose_name="Dirección")
+    phone = models.CharField(max_length=20, blank=True, verbose_name="Teléfono")
+    email = models.EmailField(blank=True, verbose_name="Correo electrónico")
+    is_active = models.BooleanField(default=True, verbose_name="Activo")
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "Proveedor de gastos"
+        verbose_name_plural = "Proveedores de gastos"
+
+    def __str__(self):
+        return f"{self.name} (NIT: {self.nit})"

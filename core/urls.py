@@ -1,7 +1,6 @@
 from django.urls import path
 from django.contrib.auth import views as auth_views
 from core.views import home  
-
 from . import views
 
 urlpatterns = [
@@ -22,4 +21,8 @@ urlpatterns = [
     path("expenses/create/", views.create_expense, name="create_expense"),
     path("", views.home, name="home"),
     path("reporte/", views.period_report, name="period_report"),
+    path("gastos/proveedores/", views.expense_provider_list, name="expense_provider_list"),
+    path("gastos/proveedores/nuevo/", views.create_expense_provider, name="create_expense_provider"),
+    path("clientes/", views.customer_list, name="customer_list"),
+    path("clientes/<int:pk>/actualizar-campo/", views.update_customer_field, name="update_customer_field"),
 ]

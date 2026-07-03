@@ -1,5 +1,6 @@
 from decimal import Decimal
 from django import forms
+from .models import ExpenseProvider  # añade al import existente
 
 from .models import (
     Expense,
@@ -279,11 +280,50 @@ class SalesPaymentForm(forms.ModelForm):
             }),
         }
 #---------------GASTOS
+
+class ExpenseProviderForm(forms.ModelForm):
+    class Meta:
+        model = ExpenseProvider
+        fields = ["name", "nit", "address", "phone", "email"]
+        widgets = {
+            "name": forms.TextInput(attrs={
+                "placeholder": "Ej: Supermercado XYZ S.A.S.",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
+            "nit": forms.TextInput(attrs={
+                "placeholder": "Ej: 900123456-7",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
+            "address": forms.TextInput(attrs={
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
+            "phone": forms.TextInput(attrs={
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
+            "email": forms.EmailInput(attrs={
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
+        }
+
+
 class ExpenseForm(forms.ModelForm):
     class Meta:
         model = Expense
-        fields = ["category", "motorcycle", "expense_date", "amount", "description"]
+        fields = [
+            "provider", "category", "motorcycle",
+            "expense_date", "subtotal", "applies_iva", "description",
+        ]
         widgets = {
+            "provider": forms.Select(attrs={
+                "id": "id_provider",
+                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
+                         "focus:border-rose-500 focus:outline-none transition",
+            }),
             "category": forms.Select(attrs={
                 "id": "id_category",
                 "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
@@ -299,37 +339,41 @@ class ExpenseForm(forms.ModelForm):
                 "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
                          "focus:border-rose-500 focus:outline-none transition",
             }),
-            "amount": forms.NumberInput(attrs={
-                "step": "1",
-                "min": "1",
-                "placeholder": "0",
-                "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
-                         "focus:border-rose-500 focus:outline-none transition",
+            "subtotal": forms.NumberInput(attrs={
+                "id": "id_subtotal",
+                "step": "1", "min": "1", "placeholder": "0",
+                "class": "w-full rounded-xl border-2 border-slate-300 pl-7 pr-3 py-2.5 text-sm "
+                        "focus:border-rose-500 focus:outline-none transition",
+            }),
+            "applies_iva": forms.CheckboxInput(attrs={
+                "id": "id_applies_iva",
+                "class": "h-5 w-5 rounded border-2 border-slate-400 text-rose-600 focus:ring-rose-500",
             }),
             "description": forms.Textarea(attrs={
                 "rows": 3,
-                "placeholder": "Observaciones opcionales…",
+                "placeholder": "Detalle de la compra (ej: 5 cajas de bolsas, recibo #1234)…",
                 "class": "w-full rounded-xl border-2 border-slate-300 px-3 py-2.5 text-sm "
                          "focus:border-rose-500 focus:outline-none transition resize-none",
             }),
         }
- 
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields["motorcycle"].queryset = Motorcycle.objects.filter(is_active=True)
         self.fields["motorcycle"].required = False
         self.fields["motorcycle"].empty_label = "— Selecciona una moto —"
         self.fields["description"].required = False
- 
+        self.fields["provider"].queryset = ExpenseProvider.objects.filter(is_active=True)
+        self.fields["provider"].required = False
+        self.fields["provider"].empty_label = "— Sin proveedor / Selecciona —"
+
     def clean(self):
         cleaned_data = super().clean()
         category   = cleaned_data.get("category")
         motorcycle = cleaned_data.get("motorcycle")
- 
         if category == Expense.CAT_FUEL and not motorcycle:
             self.add_error("motorcycle", "Debes seleccionar la moto para gastos de gasolina.")
         if category != Expense.CAT_FUEL and motorcycle:
             self.add_error("motorcycle", "La moto solo aplica para gastos de gasolina.")
- 
         return cleaned_data
         

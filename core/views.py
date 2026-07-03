@@ -11,6 +11,7 @@ from django.core.paginator import Paginator
 from django.db.models import Sum, Q
 from decimal import Decimal
 from django.utils import timezone
+from django.urls import reverse
 
 from .forms import (
     ExpenseForm,
@@ -24,7 +25,8 @@ from .forms import (
     SalesPaymentForm,
 )
 from .models import Expense, Product, PurchaseInvoice, PurchasePayment, SalesInvoice, SalesPayment, Supplier, SupplierProduct
-
+from .forms import ExpenseProviderForm  # añade al import
+from .models import ExpenseProvider     # añade al import
 
 # ── Role helpers ───────────────────────────────────────────────────────────────
 
@@ -801,10 +803,9 @@ def period_report(request):
 #------------------GASTOS--------------
 @login_required
 def create_expense(request):
-    """Register a new expense. Administrators and operators."""
     if not is_operator_or_admin(request.user):
         raise PermissionDenied
- 
+
     if request.method == "POST":
         form = ExpenseForm(request.POST)
         if form.is_valid():
@@ -812,10 +813,47 @@ def create_expense(request):
             messages.success(request, "Gasto registrado correctamente.")
             return redirect("expense_list")
     else:
-        form = ExpenseForm()
- 
+        # Preselecciona proveedor si vienes de crearlo
+        initial = {}
+        provider_id = request.GET.get("provider")
+        if provider_id:
+            initial["provider"] = provider_id
+        form = ExpenseForm(initial=initial)
+
     return render(request, "core/purchases/create_expense.html", {"form": form})
- 
+
+# ── Proveedores de gastos ─────────────────────────────────────────────────────
+
+@login_required
+def expense_provider_list(request):
+    if not is_operator_or_admin(request.user):
+        raise PermissionDenied
+    providers = ExpenseProvider.objects.all()
+    return render(request, "core/purchases/expense_provider_list.html",
+                  {"providers": providers})
+
+
+@login_required
+def create_expense_provider(request):
+    if not is_operator_or_admin(request.user):
+        raise PermissionDenied
+
+    next_url = request.GET.get("next") or request.POST.get("next") or ""
+
+    if request.method == "POST":
+        form = ExpenseProviderForm(request.POST)
+        if form.is_valid():
+            provider = form.save()
+            messages.success(request, f"Proveedor «{provider.name}» creado correctamente.")
+            # Si veníamos del formulario de gasto, regresamos con el proveedor preseleccionado
+            if next_url == "expense":
+                return redirect(f"{reverse('create_expense')}?provider={provider.pk}")
+            return redirect("expense_provider_list")
+    else:
+        form = ExpenseProviderForm()
+
+    return render(request, "core/purchases/create_expense_provider.html",
+                  {"form": form, "next_url": next_url})
  
 @login_required
 def expense_list(request):
@@ -873,3 +911,38 @@ def expense_list(request):
         "date_to":           date_to,
     }
     return render(request, "core/purchases/expense_list.html", context)
+
+
+
+from .models import Customer  # agrégalo al import de .models que ya tienes arriba
+
+# ── Clientes ───────────────────────────────────────────────────────────────
+
+@login_required
+def customer_list(request):
+    if not is_operator_or_admin(request.user):
+        raise PermissionDenied
+
+    customers = Customer.objects.filter(is_active=True).order_by("name")
+    return render(request, "core/purchases/customer_list.html", {"customers": customers})
+
+
+@login_required
+def update_customer_field(request, pk):
+    """Guarda edición inline de dirección o barrio (AJAX)."""
+    if not is_operator_or_admin(request.user):
+        raise PermissionDenied
+    if request.method != "POST":
+        return JsonResponse({"error": "Método no permitido"}, status=405)
+
+    customer = get_object_or_404(Customer, pk=pk)
+    field = request.POST.get("field")
+    value = (request.POST.get("value") or "").strip()
+
+    if field not in ("address", "neighborhood"):
+        return JsonResponse({"error": "Campo no permitido"}, status=400)
+
+    setattr(customer, field, value)
+    customer.save(update_fields=[field, "updated_at"])
+
+    return JsonResponse({"success": True, "field": field, "value": value})
