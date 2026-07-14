@@ -19,8 +19,16 @@
         <p class="text-3xl font-extrabold text-slate-800">{{ total_sales_invoices }}</p>
     </div>
 </div>
+{% else %}
+<div class="mb-6">
+    <div class="bg-blue-50 rounded-2xl border border-blue-200 shadow-sm px-5 py-4 max-w-xs">
+        <p class="text-xs font-semibold uppercase tracking-widest text-blue-600 mb-2">Facturas de venta</p>
+        <p class="text-3xl font-extrabold text-blue-700">{{ total_sales_invoices }}</p>
+    </div>
+</div>
+{% endif %}
 
-{# ── Contadores de inventario por producto ──────────────────────────────── #}
+{# ── Contadores de inventario por producto: visible para admin y operario ── #}
 {% if product_counters %}
 
 {# Label de filtro activo #}
@@ -83,15 +91,6 @@
         {% endif %}
     </div>
     {% endfor %}
-</div>
-{% endif %}
-
-{% else %}
-<div class="mb-6">
-    <div class="bg-blue-50 rounded-2xl border border-blue-200 shadow-sm px-5 py-4 max-w-xs">
-        <p class="text-xs font-semibold uppercase tracking-widest text-blue-600 mb-2">Facturas de venta</p>
-        <p class="text-3xl font-extrabold text-blue-700">{{ total_sales_invoices }}</p>
-    </div>
 </div>
 {% endif %}
 
@@ -313,7 +312,7 @@
             </p>
             <div class="flex items-center gap-1">
                 {% if purchase_invoices.has_previous %}
-                <a href="?tab=compras&c_page={{ purchase_invoices.previous_page_number }}{% if c_estado %}&c_estado={{ c_estado }}{% endif %}{% if c_fecha_desde %}&c_fecha_desde={{ c_fecha_desde }}{% endif %}{% if c_fecha_hasta %}&c_fecha_hasta={{ c_fecha_hasta }}{% endif %}"
+                <a href="?tab=compras&c_page={{ purchase_invoices.previous_page_number }}{% if c_estado %}&c_estado={{ c_estado }}{% endif %}{% if c_desde %}&c_desde={{ c_desde }}{% endif %}{% if c_hasta %}&c_hasta={{ c_hasta }}{% endif %}"
                    class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">&#8592; Anterior</a>
                 {% else %}
                 <span class="px-3 py-1.5 rounded-lg border border-slate-100 text-slate-300 text-xs font-medium cursor-not-allowed">&#8592; Anterior</span>
@@ -322,12 +321,12 @@
                     {% if purchase_invoices.number == num %}
                         <span class="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold">{{ num }}</span>
                     {% elif num >= purchase_invoices.number|add:"-2" and num <= purchase_invoices.number|add:"2" %}
-                        <a href="?tab=compras&c_page={{ num }}{% if c_estado %}&c_estado={{ c_estado }}{% endif %}{% if c_fecha_desde %}&c_fecha_desde={{ c_fecha_desde }}{% endif %}{% if c_fecha_hasta %}&c_fecha_hasta={{ c_fecha_hasta }}{% endif %}"
+                        <a href="?tab=compras&c_page={{ num }}{% if c_estado %}&c_estado={{ c_estado }}{% endif %}{% if c_desde %}&c_desde={{ c_desde }}{% endif %}{% if c_hasta %}&c_hasta={{ c_hasta }}{% endif %}"
                            class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">{{ num }}</a>
                     {% endif %}
                 {% endfor %}
                 {% if purchase_invoices.has_next %}
-                <a href="?tab=compras&c_page={{ purchase_invoices.next_page_number }}{% if c_estado %}&c_estado={{ c_estado }}{% endif %}{% if c_fecha_desde %}&c_fecha_desde={{ c_fecha_desde }}{% endif %}{% if c_fecha_hasta %}&c_fecha_hasta={{ c_fecha_hasta }}{% endif %}"
+                <a href="?tab=compras&c_page={{ purchase_invoices.next_page_number }}{% if c_estado %}&c_estado={{ c_estado }}{% endif %}{% if c_desde %}&c_desde={{ c_desde }}{% endif %}{% if c_hasta %}&c_hasta={{ c_hasta }}{% endif %}"
                    class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">Siguiente &#8594;</a>
                 {% else %}
                 <span class="px-3 py-1.5 rounded-lg border border-slate-100 text-slate-300 text-xs font-medium cursor-not-allowed">Siguiente &#8594;</span>
@@ -339,10 +338,10 @@
         {% else %}
         <div class="flex flex-col items-center justify-center py-16 text-slate-400">
             <p class="text-sm font-semibold text-slate-500">
-                {% if c_estado or c_fecha_desde or c_fecha_hasta %}Sin resultados para los filtros aplicados.
+                {% if c_estado or c_desde or c_hasta %}Sin resultados para los filtros aplicados.
                 {% else %}Sin facturas de compra.{% endif %}
             </p>
-            {% if c_estado or c_fecha_desde or c_fecha_hasta %}
+            {% if c_estado or c_desde or c_hasta %}
             <a href="?tab=compras" class="text-xs mt-2 text-blue-500 hover:underline">Limpiar filtros</a>
             {% endif %}
         </div>
@@ -421,6 +420,37 @@
                 </tbody>
             </table>
         </div>
+
+        {% if sales_invoices.paginator.num_pages > 1 %}
+        <div class="flex items-center justify-between px-5 py-4 border-t border-slate-100">
+            <p class="text-xs text-slate-400">
+                Mostrando {{ sales_invoices.start_index }}&ndash;{{ sales_invoices.end_index }}
+                de {{ sales_invoices.paginator.count }} facturas
+            </p>
+            <div class="flex items-center gap-1">
+                {% if sales_invoices.has_previous %}
+                <a href="?s_page={{ sales_invoices.previous_page_number }}"
+                   class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">&#8592; Anterior</a>
+                {% else %}
+                <span class="px-3 py-1.5 rounded-lg border border-slate-100 text-slate-300 text-xs font-medium cursor-not-allowed">&#8592; Anterior</span>
+                {% endif %}
+                {% for num in sales_invoices.paginator.page_range %}
+                    {% if sales_invoices.number == num %}
+                        <span class="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold">{{ num }}</span>
+                    {% elif num >= sales_invoices.number|add:"-2" and num <= sales_invoices.number|add:"2" %}
+                        <a href="?s_page={{ num }}"
+                           class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">{{ num }}</a>
+                    {% endif %}
+                {% endfor %}
+                {% if sales_invoices.has_next %}
+                <a href="?s_page={{ sales_invoices.next_page_number }}"
+                   class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">Siguiente &#8594;</a>
+                {% else %}
+                <span class="px-3 py-1.5 rounded-lg border border-slate-100 text-slate-300 text-xs font-medium cursor-not-allowed">Siguiente &#8594;</span>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
 
         {% comment %}MODO TARJETAS - oculto, aparece al buscar{% endcomment %}
         <div id="ventas-cards-wrap" class="hidden divide-y divide-slate-100">

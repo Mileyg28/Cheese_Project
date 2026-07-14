@@ -42,13 +42,15 @@ def is_operator_or_admin(user):
 
 # ── Home ───────────────────────────────────────────────────────────────────────
 PAGE_SIZE = 30
- 
+
 
 @login_required
 def home(request):
     from collections import defaultdict
+    from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
     is_admin = is_administrator(request.user)
+    is_operator = is_operator_or_admin(request.user)
 
     sales_invoices = SalesInvoice.objects.select_related("customer").order_by("-invoice_date", "-id")
 
@@ -92,45 +94,31 @@ def home(request):
         key=lambda c: (-c["total_pending"], c["name"].lower()),
     )
 
+    # ── Paginación de la tabla plana de ventas ───────────────────────────────
+    # OJO: usamos una variable separada (sales_invoices_page) para no afectar
+    # sales_customers, que necesita TODAS las facturas para agrupar por cliente.
+    s_page_number = request.GET.get("s_page", 1)
+    paginator_ventas = Paginator(sales_invoices, PAGE_SIZE)
+    try:
+        sales_invoices_page = paginator_ventas.page(s_page_number)
+    except PageNotAnInteger:
+        sales_invoices_page = paginator_ventas.page(1)
+    except EmptyPage:
+        sales_invoices_page = paginator_ventas.page(paginator_ventas.num_pages)
+
     context = {
         "is_admin": is_admin,
-        "sales_invoices": sales_invoices,
+        "is_operator": is_operator,
+        "sales_invoices": sales_invoices_page,
         "sales_customers": sales_customers,
         "total_sales_invoices": sales_invoices.count(),
     }
 
-    if is_admin:
-        import datetime as _dt
+    # ── Contador de inventario: visible para admin Y operario ──────────────
+    if is_operator:
         from django.db.models import Max, Sum as _Sum
         from .models import PurchaseInvoiceItem, SalesInvoiceItem
 
-        # ── Leer filtros de fecha desde GET ──────────────────────────────────
-        c_desde_raw = request.GET.get("c_desde", "")
-        c_hasta_raw = request.GET.get("c_hasta", "")
-        try:
-            c_desde = _dt.date.fromisoformat(c_desde_raw)
-        except (ValueError, TypeError):
-            c_desde = None
-        try:
-            c_hasta = _dt.date.fromisoformat(c_hasta_raw)
-        except (ValueError, TypeError):
-            c_hasta = None
-
-        # ── Facturas de compra filtradas por fecha para la tabla ──────────────
-        purchase_invoices = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
-        if c_desde:
-            purchase_invoices = purchase_invoices.filter(invoice_date__gte=c_desde)
-        if c_hasta:
-            purchase_invoices = purchase_invoices.filter(invoice_date__lte=c_hasta)
-
-        # ── Contador de inventario por producto ───────────────────────────────
-        # ── Contador de inventario por producto (rango individual por producto) ──
-        # ── Contador de inventario por producto ──────────────────────────────
-        from django.db.models import Max
-
-        today = timezone.localdate()
-
-        # Fechas de las dos últimas compras por producto
         products_with_purchases = (
             PurchaseInvoiceItem.objects
             .values(
@@ -231,13 +219,48 @@ def home(request):
                 "primera_compra": ultima_compra,
             })
 
+        context.update({"product_counters": product_counters})
+
+    # ── Facturas de compra: solo admin, ahora con filtro de estado y paginación real ──
+    if is_admin:
+        import datetime as _dt
+
+        c_desde_raw = request.GET.get("c_desde", "")
+        c_hasta_raw = request.GET.get("c_hasta", "")
+        c_estado = request.GET.get("c_estado", "")
+
+        try:
+            c_desde = _dt.date.fromisoformat(c_desde_raw)
+        except (ValueError, TypeError):
+            c_desde = None
+        try:
+            c_hasta = _dt.date.fromisoformat(c_hasta_raw)
+        except (ValueError, TypeError):
+            c_hasta = None
+
+        purchase_invoices_qs = PurchaseInvoice.objects.select_related("supplier").order_by("-invoice_date", "-id")
+        if c_desde:
+            purchase_invoices_qs = purchase_invoices_qs.filter(invoice_date__gte=c_desde)
+        if c_hasta:
+            purchase_invoices_qs = purchase_invoices_qs.filter(invoice_date__lte=c_hasta)
+        if c_estado:
+            purchase_invoices_qs = purchase_invoices_qs.filter(status=c_estado)
+
+        c_page_number = request.GET.get("c_page", 1)
+        paginator_compras = Paginator(purchase_invoices_qs, PAGE_SIZE)
+        try:
+            purchase_invoices = paginator_compras.page(c_page_number)
+        except PageNotAnInteger:
+            purchase_invoices = paginator_compras.page(1)
+        except EmptyPage:
+            purchase_invoices = paginator_compras.page(paginator_compras.num_pages)
+
         context.update({
             "purchase_invoices":       purchase_invoices,
-            "total_purchase_invoices": purchase_invoices.count(),
-            "total_sales_invoices":    sales_invoices.count(),
-            "product_counters":        product_counters,
+            "total_purchase_invoices": paginator_compras.count,
             "c_desde":                 c_desde_raw,
             "c_hasta":                 c_hasta_raw,
+            "c_estado":                c_estado,
         })
 
     return render(request, "core/purchases/home.html", context)
