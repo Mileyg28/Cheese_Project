@@ -177,7 +177,7 @@
         <div class="flex flex-col sm:flex-row sm:items-end gap-3 px-5 py-3">
             <div class="flex items-center gap-3 flex-wrap flex-1">
 
-                {% comment %}Buscador{% endcomment %}
+                {% comment %}Buscador por cliente: 100% client-side, fuera del form, no dispara request al servidor{% endcomment %}
                 <div class="flex flex-col gap-1">
                     <label class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Cliente</label>
                     <div class="relative">
@@ -190,40 +190,44 @@
                     </div>
                 </div>
 
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Estado</label>
-                    <select id="ventas-estado"
-                            class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
-                        <option value="active">Pendientes</option>
-                        <option value="">Todos</option>
-                        <option value="pending">Pendiente</option>
-                        <option value="partial">Abonada</option>
-                        <option value="paid">Pagada</option>
-                    </select>
-                </div>
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Desde</label>
-                    <input type="date" id="ventas-desde"
-                           class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
-                </div>
-                <div class="flex flex-col gap-1">
-                    <label class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Hasta</label>
-                    <input type="date" id="ventas-hasta"
-                           class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
-                </div>
-                <div class="flex items-end gap-2 mt-auto">
-                    <button onclick="filtrarTabla('ventas')"
-                            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-semibold hover:bg-slate-700 transition">
-                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
-                        </svg>
-                        Filtrar
-                    </button>
-                    <button onclick="limpiarFiltros('ventas')"
-                            class="px-3 py-2 rounded-xl border border-slate-200 text-slate-500 text-xs font-semibold hover:bg-slate-50 transition">
-                        Limpiar
-                    </button>
-                </div>
+                {% comment %}Filtro de estado/fecha: form GET real, se aplica en el servidor ANTES de paginar{% endcomment %}
+                <form method="get" id="form-filtro-ventas" class="flex items-center gap-3 flex-wrap">
+                    <input type="hidden" name="tab" value="ventas">
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Estado</label>
+                        <select name="s_estado" id="ventas-estado"
+                                class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                            <option value="active" {% if s_estado == 'active' %}selected{% endif %}>Pendientes</option>
+                            <option value="" {% if s_estado == '' %}selected{% endif %}>Todos</option>
+                            <option value="pending" {% if s_estado == 'pending' %}selected{% endif %}>Pendiente</option>
+                            <option value="partial" {% if s_estado == 'partial' %}selected{% endif %}>Abonada</option>
+                            <option value="paid" {% if s_estado == 'paid' %}selected{% endif %}>Pagada</option>
+                        </select>
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Desde</label>
+                        <input type="date" name="s_desde" id="ventas-desde" value="{{ s_desde }}"
+                               class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                    </div>
+                    <div class="flex flex-col gap-1">
+                        <label class="text-xs font-semibold text-slate-400 uppercase tracking-wide">Hasta</label>
+                        <input type="date" name="s_hasta" id="ventas-hasta" value="{{ s_hasta }}"
+                               class="rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-300">
+                    </div>
+                    <div class="flex items-end gap-2 mt-auto">
+                        <button type="submit"
+                                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 text-white text-xs font-semibold hover:bg-slate-700 transition">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"/>
+                            </svg>
+                            Filtrar
+                        </button>
+                        <a href="{% url 'home' %}?tab=ventas"
+                           class="px-3 py-2 rounded-xl border border-slate-200 text-slate-500 text-xs font-semibold hover:bg-slate-50 transition">
+                            Limpiar
+                        </a>
+                    </div>
+                </form>
             </div>
             <a href="{% url 'create_sales_invoice' %}"
                class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition shadow-sm shrink-0 self-end">
@@ -429,7 +433,7 @@
             </p>
             <div class="flex items-center gap-1">
                 {% if sales_invoices.has_previous %}
-                <a href="?s_page={{ sales_invoices.previous_page_number }}"
+                <a href="?tab=ventas&s_page={{ sales_invoices.previous_page_number }}&s_estado={{ s_estado }}{% if s_desde %}&s_desde={{ s_desde }}{% endif %}{% if s_hasta %}&s_hasta={{ s_hasta }}{% endif %}"
                    class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">&#8592; Anterior</a>
                 {% else %}
                 <span class="px-3 py-1.5 rounded-lg border border-slate-100 text-slate-300 text-xs font-medium cursor-not-allowed">&#8592; Anterior</span>
@@ -438,12 +442,12 @@
                     {% if sales_invoices.number == num %}
                         <span class="px-3 py-1.5 rounded-lg bg-slate-900 text-white text-xs font-semibold">{{ num }}</span>
                     {% elif num >= sales_invoices.number|add:"-2" and num <= sales_invoices.number|add:"2" %}
-                        <a href="?s_page={{ num }}"
+                        <a href="?tab=ventas&s_page={{ num }}&s_estado={{ s_estado }}{% if s_desde %}&s_desde={{ s_desde }}{% endif %}{% if s_hasta %}&s_hasta={{ s_hasta }}{% endif %}"
                            class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">{{ num }}</a>
                     {% endif %}
                 {% endfor %}
                 {% if sales_invoices.has_next %}
-                <a href="?s_page={{ sales_invoices.next_page_number }}"
+                <a href="?tab=ventas&s_page={{ sales_invoices.next_page_number }}&s_estado={{ s_estado }}{% if s_desde %}&s_desde={{ s_desde }}{% endif %}{% if s_hasta %}&s_hasta={{ s_hasta }}{% endif %}"
                    class="px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 text-xs font-medium hover:bg-slate-50 transition">Siguiente &#8594;</a>
                 {% else %}
                 <span class="px-3 py-1.5 rounded-lg border border-slate-100 text-slate-300 text-xs font-medium cursor-not-allowed">Siguiente &#8594;</span>

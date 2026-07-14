@@ -39,53 +39,19 @@ function togglePaidRows(cb) {
     }
 }
 
-function filtrarTabla(panel) {
-    var estado, desde, hasta, rows;
-
-    if (panel === 'compras') {
-        estado = document.getElementById('compras-estado').value;
-        desde  = document.getElementById('compras-desde').value;
-        hasta  = document.getElementById('compras-hasta').value;
-        rows   = document.querySelectorAll('.purchase-row');
-    } else {
-        estado = document.getElementById('ventas-estado').value;
-        desde  = document.getElementById('ventas-desde').value;
-        hasta  = document.getElementById('ventas-hasta').value;
-        rows   = document.querySelectorAll('.sale-row');
-    }
-
-    rows.forEach(function(row) {
-        var rowStatus = row.dataset.status || '';
-        var rowDate   = row.dataset.date   || '';
-
-        var okEstado = true;
-        if (estado === 'active') {
-            okEstado = rowStatus !== 'paid';
-        } else if (estado !== '') {
-            okEstado = rowStatus === estado;
-        }
-
-        var okDesde = !desde || rowDate >= desde;
-        var okHasta = !hasta || rowDate <= hasta;
-
-        row.style.display = (okEstado && okDesde && okHasta) ? '' : 'none';
-    });
-}
-
-function limpiarFiltros(panel) {
-    if (panel === 'compras') {
-        document.getElementById('compras-estado').value = '';
-        document.getElementById('compras-desde').value  = '';
-        document.getElementById('compras-hasta').value  = '';
-    } else {
-        document.getElementById('ventas-estado').value = 'active';
-        document.getElementById('ventas-desde').value  = '';
-        document.getElementById('ventas-hasta').value  = '';
-    }
-    filtrarTabla(panel);
-}
-
 document.addEventListener('DOMContentLoaded', function () {
+
+    // ── Restaurar la pestaña activa según ?tab= de la URL ───────────────────
+    // (compras y ventas ahora hacen submit real al servidor con GET, así que
+    // sin esto, admin siempre volvería a caer en la pestaña de compras al
+    // filtrar o cambiar de página en ventas)
+    var params = new URLSearchParams(window.location.search);
+    var tab = params.get('tab');
+    if (tab === 'ventas' || tab === 'compras') {
+        switchTab(tab);
+    }
+
+    // ── Buscador de cliente: 100% client-side, alterna tabla <-> tarjetas ──
     var searchInput = document.getElementById('customer-search');
     var tableWrap   = document.getElementById('ventas-table-wrap');
     var cardsWrap   = document.getElementById('ventas-cards-wrap');
@@ -113,7 +79,5 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (searchInput) searchInput.addEventListener('input', applySearch);
-
-    filtrarTabla('ventas');
     applySearch();
 });

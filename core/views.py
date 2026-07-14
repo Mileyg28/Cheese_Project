@@ -47,11 +47,16 @@ PAGE_SIZE = 30
 @login_required
 def home(request):
     from collections import defaultdict
+    import datetime as _dt
     from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 
     is_admin = is_administrator(request.user)
     is_operator = is_operator_or_admin(request.user)
 
+    # ── Queryset COMPLETO de ventas: se usa para armar las tarjetas por
+    # cliente (sales_customers). NO se filtra por estado/fecha ni se pagina,
+    # porque esa vista necesita ver pendientes/abonadas/pagadas de cada
+    # cliente completas (con el toggle "Mostrar pagadas").
     sales_invoices = SalesInvoice.objects.select_related("customer").order_by("-invoice_date", "-id")
 
     STATUS_ORDER = {
@@ -94,11 +99,42 @@ def home(request):
         key=lambda c: (-c["total_pending"], c["name"].lower()),
     )
 
-    # ── Paginación de la tabla plana de ventas ───────────────────────────────
-    # OJO: usamos una variable separada (sales_invoices_page) para no afectar
-    # sales_customers, que necesita TODAS las facturas para agrupar por cliente.
+    # ── Queryset FILTRADA de ventas para la tabla plana (la que se pagina) ──
+    # "s_estado" ausente en el GET (primera carga de la página) → default
+    # "active" (= no pagadas), igual que el comportamiento original en JS.
+    # Si el usuario ya envió el form (aunque sea con "Todos" = valor vacío),
+    # respetamos exactamente lo que envió.
+    if "s_estado" in request.GET:
+        s_estado = request.GET.get("s_estado", "")
+    else:
+        s_estado = "active"
+
+    s_desde_raw = request.GET.get("s_desde", "")
+    s_hasta_raw = request.GET.get("s_hasta", "")
+    try:
+        s_desde = _dt.date.fromisoformat(s_desde_raw)
+    except (ValueError, TypeError):
+        s_desde = None
+    try:
+        s_hasta = _dt.date.fromisoformat(s_hasta_raw)
+    except (ValueError, TypeError):
+        s_hasta = None
+
+    sales_invoices_table_qs = SalesInvoice.objects.select_related("customer").order_by("-invoice_date", "-id")
+
+    if s_estado == "active":
+        sales_invoices_table_qs = sales_invoices_table_qs.exclude(status=SalesInvoice.STATUS_PAID)
+    elif s_estado in (SalesInvoice.STATUS_PENDING, SalesInvoice.STATUS_PARTIAL, SalesInvoice.STATUS_PAID):
+        sales_invoices_table_qs = sales_invoices_table_qs.filter(status=s_estado)
+    # s_estado == "" → "Todos", sin filtro de estado
+
+    if s_desde:
+        sales_invoices_table_qs = sales_invoices_table_qs.filter(invoice_date__gte=s_desde)
+    if s_hasta:
+        sales_invoices_table_qs = sales_invoices_table_qs.filter(invoice_date__lte=s_hasta)
+
     s_page_number = request.GET.get("s_page", 1)
-    paginator_ventas = Paginator(sales_invoices, PAGE_SIZE)
+    paginator_ventas = Paginator(sales_invoices_table_qs, PAGE_SIZE)
     try:
         sales_invoices_page = paginator_ventas.page(s_page_number)
     except PageNotAnInteger:
@@ -112,6 +148,9 @@ def home(request):
         "sales_invoices": sales_invoices_page,
         "sales_customers": sales_customers,
         "total_sales_invoices": sales_invoices.count(),
+        "s_estado": s_estado,
+        "s_desde": s_desde_raw,
+        "s_hasta": s_hasta_raw,
     }
 
     # ── Contador de inventario: visible para admin Y operario ──────────────
@@ -221,10 +260,8 @@ def home(request):
 
         context.update({"product_counters": product_counters})
 
-    # ── Facturas de compra: solo admin, ahora con filtro de estado y paginación real ──
+    # ── Facturas de compra: solo admin ──────────────────────────────────────
     if is_admin:
-        import datetime as _dt
-
         c_desde_raw = request.GET.get("c_desde", "")
         c_hasta_raw = request.GET.get("c_hasta", "")
         c_estado = request.GET.get("c_estado", "")
