@@ -378,8 +378,7 @@
                     {% for inv in sales_invoices %}
                     <tr class="sale-row hover:bg-slate-50 transition"
                         data-status="{{ inv.status }}"
-                        data-date="{{ inv.invoice_date|date:'Y-m-d' }}"
-                        {% if inv.status == 'paid' %}style="display:none"{% endif %}>
+                        data-date="{{ inv.invoice_date|date:'Y-m-d' }}">
                         <td class="px-5 py-3.5 font-mono font-semibold text-slate-700 text-xs">{{ inv.invoice_number }}</td>
                         <td class="px-5 py-3.5 font-medium text-slate-800">{{ inv.customer.name }}</td>
                         <td class="px-5 py-3.5 text-slate-500">{{ inv.invoice_date }}</td>
